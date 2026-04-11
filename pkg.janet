@@ -152,6 +152,14 @@
   (or (get pkg :depends)
       @[]))
 
+(defn package-kind [pkg]
+  (or (get pkg :kind)
+      (if (> (length (package-apps pkg)) 0)
+        :app
+        (if (> (length (package-bins pkg)) 0)
+          :cli
+          :runtime))))
+
 (defn expand-project-path [value]
   (if (or (= "" value)
           (= "/" (string/slice value 0 1)))
@@ -321,6 +329,7 @@
             (string/format "%q"
               @{:name (get pkg :name)
                 :version (get pkg :version)
+                :kind (package-kind pkg)
                 :prefix (package-install-dir pkg)
                 :bins (package-bins pkg)
                 :linked linked
@@ -348,13 +357,22 @@
       @[]))
 
 (defn manifest-kind [manifest]
-  (let [has-bins (> (length (manifest-linked-bins manifest)) 0)
-        has-apps (> (length (manifest-apps manifest)) 0)]
-    (if (and has-bins has-apps)
-      "mixed"
-      (if has-apps
-        "app"
-        "bin"))))
+  (let [kind (get manifest :kind)]
+    (if kind
+      (string kind)
+      (let [has-bins (> (length (manifest-linked-bins manifest)) 0)
+            has-apps (> (length (manifest-apps manifest)) 0)]
+        (if (and has-bins has-apps)
+          "mixed"
+          (if has-apps
+            "app"
+            "bin"))))))
+
+(defn installed-item-kind [name version manifest]
+  (let [pkg (get reg/packages name)]
+    (if (and pkg (= version (get pkg :version)))
+      (string (package-kind pkg))
+      (manifest-kind manifest))))
 
 (defn manifest-source-type [manifest]
   (let [source (get manifest :source)]
@@ -631,7 +649,7 @@
                     (array/push installed
                                 @{:name name
                                   :version version
-                                  :kind (manifest-kind manifest)
+                                  :kind (installed-item-kind name version manifest)
                                   :source (manifest-source-type manifest)})))))))
         (if (= 0 (length installed))
           (print "no installed packages")
@@ -659,6 +677,7 @@
   (let [pkg (package-by-name name)]
     (print "name:    " (get pkg :name))
     (print "version: " (get pkg :version))
+    (print "kind:    " (package-kind pkg))
     (print "source:  " (get (get pkg :source) :type))
     (if (get (get pkg :source) :url)
       (print "url:     " (get (get pkg :source) :url)))

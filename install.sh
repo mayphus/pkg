@@ -279,6 +279,14 @@ write_pkg_cli() {
   (or (get pkg :depends)
       @[]))
 
+(defn package-kind [pkg]
+  (or (get pkg :kind)
+      (if (> (length (package-apps pkg)) 0)
+        :app
+        (if (> (length (package-bins pkg)) 0)
+          :cli
+          :runtime))))
+
 (defn expand-project-path [value]
   (if (or (= "" value)
           (= "/" (string/slice value 0 1)))
@@ -448,6 +456,7 @@ write_pkg_cli() {
             (string/format "%q"
               @{:name (get pkg :name)
                 :version (get pkg :version)
+                :kind (package-kind pkg)
                 :prefix (package-install-dir pkg)
                 :bins (package-bins pkg)
                 :linked linked
@@ -475,13 +484,22 @@ write_pkg_cli() {
       @[]))
 
 (defn manifest-kind [manifest]
-  (let [has-bins (> (length (manifest-linked-bins manifest)) 0)
-        has-apps (> (length (manifest-apps manifest)) 0)]
-    (if (and has-bins has-apps)
-      "mixed"
-      (if has-apps
-        "app"
-        "bin"))))
+  (let [kind (get manifest :kind)]
+    (if kind
+      (string kind)
+      (let [has-bins (> (length (manifest-linked-bins manifest)) 0)
+            has-apps (> (length (manifest-apps manifest)) 0)]
+        (if (and has-bins has-apps)
+          "mixed"
+          (if has-apps
+            "app"
+            "bin"))))))
+
+(defn installed-item-kind [name version manifest]
+  (let [pkg (get reg/packages name)]
+    (if (and pkg (= version (get pkg :version)))
+      (string (package-kind pkg))
+      (manifest-kind manifest))))
 
 (defn manifest-source-type [manifest]
   (let [source (get manifest :source)]
@@ -758,7 +776,7 @@ write_pkg_cli() {
                     (array/push installed
                                 @{:name name
                                   :version version
-                                  :kind (manifest-kind manifest)
+                                  :kind (installed-item-kind name version manifest)
                                   :source (manifest-source-type manifest)})))))))
         (if (= 0 (length installed))
           (print "no installed packages")
@@ -786,6 +804,7 @@ write_pkg_cli() {
   (let [pkg (package-by-name name)]
     (print "name:    " (get pkg :name))
     (print "version: " (get pkg :version))
+    (print "kind:    " (package-kind pkg))
     (print "source:  " (get (get pkg :source) :type))
     (if (get (get pkg :source) :url)
       (print "url:     " (get (get pkg :source) :url)))
@@ -913,6 +932,7 @@ write_pkg_registry() {
 (def packages
   @{"hello-local"
     @{:name "hello-local"
+      :kind :cli
       :version "0.1.0"
       :source @{:type :link
                 :path "examples"}
@@ -921,6 +941,7 @@ write_pkg_registry() {
 
     "janet"
     @{:name "janet"
+      :kind :runtime
       :version "1.41.2"
       :source @{:type :url
                 :url "https://github.com/janet-lang/janet/archive/refs/tags/v1.41.2.tar.gz"
@@ -938,6 +959,7 @@ write_pkg_registry() {
 
     "gh"
     @{:name "gh"
+      :kind :cli
       :version "2.89.0"
       :source @{:type :url
                 :url "https://github.com/cli/cli/releases/download/v2.89.0/gh_2.89.0_macOS_arm64.zip"
@@ -950,6 +972,7 @@ write_pkg_registry() {
 
     "codex"
     @{:name "codex"
+      :kind :cli
       :version "0.120.0"
       :source @{:type :url
                 :url "https://github.com/openai/codex/releases/download/rust-v0.120.0/codex-aarch64-apple-darwin.tar.gz"
@@ -962,6 +985,7 @@ write_pkg_registry() {
 
     "gemini"
     @{:name "gemini"
+      :kind :tool
       :version "0.37.1"
       :depends ["bun"]
       :source @{:type :url
@@ -979,6 +1003,7 @@ write_pkg_registry() {
 
     "ripgrep"
     @{:name "ripgrep"
+      :kind :cli
       :version "15.1.0"
       :source @{:type :url
                 :url "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-aarch64-apple-darwin.tar.gz"
@@ -992,6 +1017,7 @@ write_pkg_registry() {
 
     "tree"
     @{:name "tree"
+      :kind :cli
       :version "2.2.1"
       :source @{:type :url
                 :url "https://oldmanprogrammer.net/tar/tree/tree-2.2.1.tgz"
@@ -1006,6 +1032,7 @@ write_pkg_registry() {
 
     "emacs"
     @{:name "emacs"
+      :kind :app
       :version "30.2-1"
       :source @{:type :url
                 :url "https://emacsformacosx.com/emacs-builds/Emacs-30.2-1-universal.dmg"
@@ -1021,6 +1048,7 @@ write_pkg_registry() {
 
     "openjdk"
     @{:name "openjdk"
+      :kind :runtime
       :version "21.0.9+10"
       :source @{:type :url
                 :url "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.9%2B10/OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.9_10.tar.gz"
@@ -1043,6 +1071,7 @@ write_pkg_registry() {
 
     "bun"
     @{:name "bun"
+      :kind :runtime
       :version "1.3.12"
       :source @{:type :url
                 :url "https://github.com/oven-sh/bun/releases/download/bun-v1.3.12/bun-darwin-aarch64.zip"
@@ -1056,6 +1085,7 @@ write_pkg_registry() {
 
     "clojure"
     @{:name "clojure"
+      :kind :runtime
       :version "1.12.4.1618"
       :source @{:type :url
                 :url "https://download.clojure.org/install/clojure-tools-1.12.4.1618.tar.gz"
@@ -1081,6 +1111,7 @@ write_pkg_registry() {
 
     "babashka"
     @{:name "babashka"
+      :kind :cli
       :version "1.12.209"
       :source @{:type :url
                 :url "https://github.com/babashka/babashka/releases/download/v1.12.209/babashka-1.12.209-macos-aarch64.tar.gz"
@@ -1093,6 +1124,7 @@ write_pkg_registry() {
 
     "minimal-racket"
     @{:name "minimal-racket"
+      :kind :runtime
       :version "9.1"
       :source @{:type :url
                 :url "https://download.racket-lang.org/releases/9.1/installers/racket-minimal-9.1-aarch64-macosx-cs.tgz"
@@ -1105,6 +1137,7 @@ write_pkg_registry() {
 
     "python"
     @{:name "python"
+      :kind :runtime
       :version "3.14.2"
       :source @{:type :url
                 :url "https://github.com/astral-sh/python-build-standalone/releases/download/20251217/cpython-3.14.2%2B20251217-aarch64-apple-darwin-install_only.tar.gz"
@@ -1120,6 +1153,7 @@ write_pkg_registry() {
 
     "uv"
     @{:name "uv"
+      :kind :tool
       :version "0.11.6"
       :source @{:type :url
                 :url "https://github.com/astral-sh/uv/releases/download/0.11.6/uv-aarch64-apple-darwin.tar.gz"
@@ -1132,6 +1166,7 @@ write_pkg_registry() {
 
     "google-chrome"
     @{:name "google-chrome"
+      :kind :app
       :version "stable"
       :source @{:type :url
                 :url "https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg"
