@@ -9,9 +9,9 @@
 
     "janet"
     @{:name "janet"
-      :version "1.41.1"
+      :version "1.41.2"
       :source @{:type :url
-                :url "https://github.com/janet-lang/janet/releases/download/v1.41.1/janet-1.41.1.tar.gz"
+                :url "https://github.com/janet-lang/janet/archive/refs/tags/v1.41.2.tar.gz"
                 :archive :tar.gz
                 :strip-components 1}
       :build ["make"
