@@ -1,0 +1,5 @@
+#!/bin/sh
+ROOT="/Users/mayphus/lpkg"
+export LPKG_ROOT="$ROOT"
+cd "$ROOT" || exit 1
+exec janet "$ROOT/lpkg.janet" "$@"
