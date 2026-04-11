@@ -244,6 +244,51 @@
       :bins ["racket" "raco"]
       :notes "Installs the relocatable Minimal Racket macOS arm64 distribution."}
 
+    "rust"
+    @{:name "rust"
+      :kind :runtime
+      :version "1.94.1"
+      :homepage "https://www.rust-lang.org/"
+      :license "Apache-2.0/MIT and bundled upstream licenses"
+      :source @{:type :url
+                :url "https://static.rust-lang.org/dist/2026-03-26/rust-1.94.1-aarch64-apple-darwin.tar.gz"
+                :archive :tar.gz
+                :strip-components 1
+                :sha256 "630349bd157632ff65aafd1b5753e6a09153278cdac8196e8678b40b30cf1ecb"}
+      :build ["./install.sh --prefix=\"$PREFIX\" --without=rust-docs"]
+      :bins ["cargo" "rustc" "rustdoc"]
+      :notes "Installs the official stable Rust macOS arm64 toolchain tarball directly into the package prefix. This does not install rustup."}
+
+    "zig"
+    @{:name "zig"
+      :kind :runtime
+      :version "0.15.2"
+      :homepage "https://ziglang.org/"
+      :license "MIT"
+      :source @{:type :url
+                :url "https://ziglang.org/download/0.15.2/zig-aarch64-macos-0.15.2.tar.xz"
+                :archive :tar.xz
+                :strip-components 1
+                :sha256 "3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b"}
+      :install-mode :copy-tree
+      :bins ["zig"]
+      :notes "Installs the official Zig macOS arm64 binary distribution."}
+
+    "go"
+    @{:name "go"
+      :kind :runtime
+      :version "1.26.2"
+      :homepage "https://go.dev/"
+      :license "BSD-3-Clause"
+      :source @{:type :url
+                :url "https://go.dev/dl/go1.26.2.darwin-arm64.tar.gz"
+                :archive :tar.gz
+                :strip-components 1
+                :sha256 "32af1522bf3e3ff3975864780a429cc0b41d190ec7bf90faa661d6d64566e7af"}
+      :install-mode :copy-tree
+      :bins ["go" "gofmt"]
+      :notes "Installs the official Go macOS arm64 tarball distribution."}
+
     "python"
     @{:name "python"
       :kind :runtime
