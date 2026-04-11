@@ -4,14 +4,6 @@ set -eu
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 OUT="${ROOT}/install.sh"
 
-write_heredoc() {
-  label="$1"
-  path="$2"
-  printf "  cat > %s <<'%s'\n" "\"$3\"" "$label" >> "${OUT}"
-  sed 's/^//' "${path}" >> "${OUT}"
-  printf "%s\n" "$label" >> "${OUT}"
-}
-
 cat > "${OUT}" <<'EOF'
 #!/bin/sh
 set -eu
@@ -36,10 +28,18 @@ JPM_BIN="${TARGET_PREFIX}/bin/jpm"
 JANET_URL="${JANET_URL:-https://github.com/janet-lang/janet/archive/refs/tags/v${JANET_VERSION}.tar.gz}"
 JPM_GIT_URL="${JPM_GIT_URL:-https://github.com/janet-lang/jpm.git}"
 
+BOOTSTRAP_REPO="${PKG_BOOTSTRAP_REPO:-mayphus/pkg}"
+BOOTSTRAP_REF="${PKG_BOOTSTRAP_REF:-main}"
+BOOTSTRAP_BASE_URL="${PKG_BOOTSTRAP_BASE_URL:-https://raw.githubusercontent.com/${BOOTSTRAP_REPO}/${BOOTSTRAP_REF}}"
+
 SCRIPT_PATH="${0:-}"
 SCRIPT_DIR=""
+LOCAL_SOURCE_ROOT=""
 if [ -n "${SCRIPT_PATH}" ] && [ -f "${SCRIPT_PATH}" ]; then
   SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${SCRIPT_PATH}")" && pwd)"
+  if [ -f "${SCRIPT_DIR}/bin/pkg" ] && [ -f "${SCRIPT_DIR}/pkg.janet" ] && [ -f "${SCRIPT_DIR}/packages.janet" ]; then
+    LOCAL_SOURCE_ROOT="${SCRIPT_DIR}"
+  fi
 fi
 
 prompt_install_clt() {
@@ -65,6 +65,24 @@ ensure_clt() {
   fi
 }
 
+download_file() {
+  url="$1"
+  dest="$2"
+  curl -fsSL "$url" -o "$dest"
+}
+
+fetch_pkg_file() {
+  rel="$1"
+  dest="$2"
+  mkdir -p "$(dirname "$dest")"
+  rm -f "$dest"
+  if [ -n "${LOCAL_SOURCE_ROOT}" ]; then
+    cp "${LOCAL_SOURCE_ROOT}/${rel}" "$dest"
+  else
+    download_file "${BOOTSTRAP_BASE_URL}/${rel}" "$dest"
+  fi
+}
+
 bootstrap_janet() {
   mkdir -p "${BIN_DIR}" "${LIB_DIR}"
 
@@ -72,7 +90,7 @@ bootstrap_janet() {
     TMPDIR="$(mktemp -d /tmp/pkg-bootstrap-janet.XXXXXX)"
     trap 'rm -rf "${TMPDIR}"' EXIT INT TERM
 
-    curl -L "${JANET_URL}" -o "${TMPDIR}/janet.tar.gz"
+    download_file "${JANET_URL}" "${TMPDIR}/janet.tar.gz"
     mkdir -p "${TMPDIR}/src"
     tar -xzf "${TMPDIR}/janet.tar.gz" -C "${TMPDIR}/src" --strip-components 1
 
@@ -109,37 +127,12 @@ bootstrap_janet() {
   ln -sfn "${TARGET_PREFIX}/lib/janet" "${LIB_DIR}/janet"
 }
 
-write_pkg_wrapper() {
-  mkdir -p "${BIN_DIR}"
-  rm -f "${BIN_DIR}/pkg"
-EOF
-
-write_heredoc "EOF_PKG_WRAPPER" "${ROOT}/bin/pkg" '${BIN_DIR}/pkg'
-cat >> "${OUT}" <<'EOF'
-  chmod 755 "${BIN_DIR}/pkg"
-}
-
-write_pkg_cli() {
-  mkdir -p "${PKG_LIB_DIR}" "${CONFIG_DIR}"
-  rm -f "${PKG_LIB_DIR}/pkg.janet"
-EOF
-write_heredoc "EOF_PKG_CLI" "${ROOT}/pkg.janet" '${PKG_LIB_DIR}/pkg.janet'
-cat >> "${OUT}" <<'EOF'
-}
-
-write_pkg_registry() {
-  mkdir -p "${PKG_LIB_DIR}"
-  rm -f "${PKG_LIB_DIR}/packages.janet"
-EOF
-write_heredoc "EOF_PKG_REGISTRY" "${ROOT}/packages.janet" '${PKG_LIB_DIR}/packages.janet'
-cat >> "${OUT}" <<'EOF'
-}
-
 install_pkg() {
   mkdir -p "${BIN_DIR}" "${PKG_LIB_DIR}" "${CONFIG_DIR}"
-  write_pkg_wrapper
-  write_pkg_cli
-  write_pkg_registry
+  fetch_pkg_file "bin/pkg" "${BIN_DIR}/pkg"
+  chmod 755 "${BIN_DIR}/pkg"
+  fetch_pkg_file "pkg.janet" "${PKG_LIB_DIR}/pkg.janet"
+  fetch_pkg_file "packages.janet" "${PKG_LIB_DIR}/packages.janet"
 
   if [ -n "${SCRIPT_DIR}" ] && [ -d "${SCRIPT_DIR}/.git" ]; then
     printf '%s\n' "${SCRIPT_DIR}" > "${SELF_SOURCE_FILE}"
