@@ -396,6 +396,15 @@
               (os/dir pkg-root))
       @[])))
 
+(defn installed-package-names []
+  (let [root (installed-dir)
+        names @[]]
+    (if (os/stat root)
+      (each name (os/dir root)
+        (if (> (length (installed-package-versions name)) 0)
+          (array/push names name))))
+    names))
+
 (defn remove-empty-dir [path]
   (if (and (os/stat path)
            (= 0 (length (os/dir path))))
@@ -624,6 +633,29 @@
         version (get pkg :version)]
     (remove-installed-version name version)))
 
+(defn package-upgrade-plan [name]
+  (let [pkg (get reg/packages name)
+        installed-versions (installed-package-versions name)]
+    (if (not pkg)
+      @{:status :unknown
+        :installed installed-versions}
+      (let [target-version (get pkg :version)]
+        (if (= 0 (length installed-versions))
+          @{:status :missing
+            :target target-version}
+          (if (> (length installed-versions) 1)
+            @{:status :multiple
+              :target target-version
+              :installed installed-versions}
+            (let [installed-version (get installed-versions 0)]
+              (if (= installed-version target-version)
+                @{:status :current
+                  :target target-version
+                  :installed installed-version}
+                @{:status :outdated
+                  :target target-version
+                  :installed installed-version}))))))))
+
 (defn upgrade-package [name]
   (if (= name "pkg")
     (do
@@ -638,22 +670,39 @@
               (install-self-files source-root)
               (print "upgraded pkg from " source-root))
             (fail "no pkg bootstrap repo or source checkout recorded")))))
-    (let [pkg (package-by-name name)
-          version (get pkg :version)
-          installed-versions (installed-package-versions name)]
-      (if (read-manifest name version)
-        (do
-          (remove-package name)
-          (install-package name))
-        (if (= 0 (length installed-versions))
-          (fail (string "package is not installed: " name))
-          (if (> (length installed-versions) 1)
-            (fail (string "multiple installed versions for " name ": "
-                          (string/join installed-versions ", ")
-                          " (remove one or use reinstall)"))
-            (do
-              (remove-installed-version name (get installed-versions 0))
-              (install-package name))))))))
+    (let [plan (package-upgrade-plan name)]
+      (case (get plan :status)
+        :missing (fail (string "package is not installed: " name))
+        :multiple (fail (string "multiple installed versions for " name ": "
+                                (string/join (get plan :installed) ", ")
+                                " (remove one or use reinstall)"))
+        :current (print "already up to date: " name " " (get plan :target))
+        :outdated (do
+                    (remove-installed-version name (get plan :installed))
+                    (install-package name))
+        (fail (string "unknown package: " name))))))
+
+(defn command-upgrade-all []
+  (ensure-layout)
+  (let [names (installed-package-names)]
+    (if (= 0 (length names))
+      (print "no installed packages")
+      (do
+        (print "checking installed packages:")
+        (each name names
+          (if (= name "pkg")
+            (print "  pkg: skip (run `pkg upgrade pkg` explicitly)")
+            (let [plan (package-upgrade-plan name)]
+              (case (get plan :status)
+                :unknown (print "  " name ": skip (not in registry)")
+                :missing (print "  " name ": skip (not installed)")
+                :multiple (print "  " name ": skip (multiple installed versions: "
+                                 (string/join (get plan :installed) ", ") ")")
+                :current (print "  " name ": up to date (" (get plan :target) ")")
+                :outdated (do
+                            (print "  " name ": upgrade " (get plan :installed) " -> " (get plan :target))
+                            (upgrade-package name))
+                (print "  " name ": skip")))))))))
 
 (defn reinstall-package [name]
   (let [pkg (package-by-name name)
@@ -893,6 +942,7 @@
   (print "  reinstall <pkg>      remove and install current package version")
   (print "  remove <pkg>         remove a package")
   (print "  upgrade <pkg>        upgrade an installed package")
+  (print "  upgrade --all        upgrade all installed packages")
   (print "  cleanup [--cache]    remove build state, optionally cache")
   (print "  audit                report packages missing sha256")
   (print "  doctor               create layout and print paths"))
@@ -930,7 +980,10 @@
                       (fail "remove requires a package name"))
                     (if (= command "upgrade")
                       (if (get args 1)
-                        (upgrade-package (get args 1))
+                        (if (or (= (get args 1) "--all")
+                                (= (get args 1) "all"))
+                          (command-upgrade-all)
+                          (upgrade-package (get args 1)))
                         (fail "upgrade requires a package name"))
                       (if (= command "cleanup")
                         (apply command-cleanup (tuple/slice args 1))
