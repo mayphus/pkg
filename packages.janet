@@ -94,6 +94,19 @@
               @{:name "jpackage" :path "Contents/Home/bin/jpackage"}
               @{:name "jshell" :path "Contents/Home/bin/jshell"}
               @{:name "keytool" :path "Contents/Home/bin/keytool"}]
-      :notes "Installs Eclipse Temurin OpenJDK 21 for macOS arm64."}})
+      :notes "Installs Eclipse Temurin OpenJDK 21 for macOS arm64."}
+
+    "bun"
+    @{:name "bun"
+      :version "1.3.12"
+      :source @{:type :url
+                :url "https://github.com/oven-sh/bun/releases/download/bun-v1.3.12/bun-darwin-aarch64.zip"
+                :archive :zip
+                :sha256 "6c4bb87dd013ed1a8d6a16e357a3d094959fd5530b4d7061f7f3680c3c7cea1c"}
+      :build ["mkdir -p \"$PREFIX/bin\""
+              "cp bun-darwin-aarch64/bun \"$PREFIX/bin/bun\""
+              "chmod 755 \"$PREFIX/bin/bun\""]
+      :bins ["bun"]
+      :notes "Installs the official Bun macOS arm64 binary."}})
 
 packages
