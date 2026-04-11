@@ -40,9 +40,28 @@ This is intentionally simple. There is no dependency solver, no bottle system, n
 ./bin/pkg doctor
 ./bin/pkg install hello-local
 ./bin/pkg remove hello-local
+./bin/pkg upgrade pkg
 ./bin/pkg install janet
 ./bin/pkg remove janet
 ```
+
+## Install
+
+Use the installer to bootstrap everything into `~/.local`:
+
+```sh
+sh ./install.sh
+```
+
+`install.sh` is standalone. It does not need `packages.janet`, `pkg.janet`, or `bin/pkg` to already be present on disk at install time.
+
+The installer does three things:
+
+- checks for macOS Command Line Tools and prompts to install them first if needed
+- bootstraps Janet and `jpm` into `~/.local/opt/janet/<version>` and relinks `~/.local/bin/janet`
+- writes the `pkg` wrapper and Janet sources into `~/.local/bin/pkg` and `~/.local/share/pkg/lib`
+
+After that, `pkg` should work directly from your shell as long as `~/.local/bin` is on `PATH`.
 
 ## First smoke test
 
@@ -55,25 +74,15 @@ hello-local
 ./bin/pkg remove hello-local
 ```
 
-## Bootstrapping Janet
+## Upgrading pkg
 
-This prototype needs a working `janet` binary first. The intended bootstrap path is:
-
-1. build Janet once by hand into `~/.local`
-2. use `pkg` afterward to manage Janet and other user tools
-
-After you have `janet`, put the wrapper on your `PATH`:
+Once installed, refresh the installed wrapper and Janet sources from your recorded checkout with:
 
 ```sh
-mkdir -p ~/.local/bin
-ln -sf /path/to/pkg/bin/pkg ~/.local/bin/pkg
+pkg upgrade pkg
 ```
 
-The wrapper discovers the repo root from its own location, so it can be symlinked from anywhere.
-
-Then ensure `~/.local/bin` is on your shell `PATH`.
-
-After that, `pkg install janet` is designed to replace the bootstrap copy with a `pkg`-managed Janet tree under `~/.local/opt/janet/<version>` and relink `~/.local/bin/janet` and `~/.local/bin/jpm`.
+This currently upgrades `pkg` from the checkout path recorded by `install.sh` when the installer is run from a git checkout. If `install.sh` is run standalone without a checkout, `pkg upgrade pkg` will not have a source tree to copy from yet.
 
 ## Registry shape
 

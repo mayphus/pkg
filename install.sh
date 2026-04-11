@@ -1,3 +1,128 @@
+#!/bin/sh
+set -eu
+
+if [ "$(uname -s)" != "Darwin" ]; then
+  printf '%s\n' 'install.sh currently supports macOS only.'
+  exit 1
+fi
+
+PREFIX="${PREFIX:-${HOME}/.local}"
+BIN_DIR="${PREFIX}/bin"
+LIB_DIR="${PREFIX}/lib"
+PKG_LIB_DIR="${PREFIX}/share/pkg/lib"
+CONFIG_DIR="${HOME}/.config/pkg"
+SELF_SOURCE_FILE="${CONFIG_DIR}/self-source"
+
+JANET_VERSION="${JANET_VERSION:-1.41.2}"
+TARGET_PREFIX="${PREFIX}/opt/janet/${JANET_VERSION}"
+JANET_BIN="${TARGET_PREFIX}/bin/janet"
+JPM_BIN="${TARGET_PREFIX}/bin/jpm"
+JANET_URL="${JANET_URL:-https://github.com/janet-lang/janet/archive/refs/tags/v${JANET_VERSION}.tar.gz}"
+JPM_GIT_URL="${JPM_GIT_URL:-https://github.com/janet-lang/jpm.git}"
+
+SCRIPT_PATH="${0:-}"
+SCRIPT_DIR=""
+if [ -n "${SCRIPT_PATH}" ] && [ -f "${SCRIPT_PATH}" ]; then
+  SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${SCRIPT_PATH}")" && pwd)"
+fi
+
+prompt_install_clt() {
+  printf '%s' 'macOS Command Line Tools are required. Install them now? [Y/n] '
+  read -r answer
+  case "${answer:-Y}" in
+    Y|y|yes|YES)
+      xcode-select --install || true
+      printf '%s\n' 'Command Line Tools installation has been requested.'
+      printf '%s\n' 'Rerun install.sh after the installer finishes.'
+      exit 1
+      ;;
+    *)
+      printf '%s\n' 'Aborting without Command Line Tools.'
+      exit 1
+      ;;
+  esac
+}
+
+ensure_clt() {
+  if ! xcode-select -p >/dev/null 2>&1; then
+    prompt_install_clt
+  fi
+}
+
+bootstrap_janet() {
+  mkdir -p "${BIN_DIR}" "${LIB_DIR}"
+
+  if [ ! -x "${JANET_BIN}" ]; then
+    TMPDIR="$(mktemp -d /tmp/pkg-bootstrap-janet.XXXXXX)"
+    trap 'rm -rf "${TMPDIR}"' EXIT INT TERM
+
+    curl -L "${JANET_URL}" -o "${TMPDIR}/janet.tar.gz"
+    mkdir -p "${TMPDIR}/src"
+    tar -xzf "${TMPDIR}/janet.tar.gz" -C "${TMPDIR}/src" --strip-components 1
+
+    (
+      cd "${TMPDIR}/src"
+      make
+      make PREFIX="${TARGET_PREFIX}" install
+      rm -rf build/jpm
+      git clone --depth=1 "${JPM_GIT_URL}" build/jpm
+      PREFIX="${TARGET_PREFIX}" \
+      JANET_MANPATH="${TARGET_PREFIX}/share/man/man1" \
+      JANET_HEADERPATH="${TARGET_PREFIX}/include/janet" \
+      JANET_BINPATH="${TARGET_PREFIX}/bin" \
+      JANET_LIBPATH="${TARGET_PREFIX}/lib" \
+      JANET_MODPATH="${TARGET_PREFIX}/lib/janet" \
+      ./build/janet -e '(import ./build/jpm/jpm/make-config :as mc) (spit "./build/jpm-local-config.janet" (mc/generate-config nil true))'
+      (
+        cd build/jpm
+        PREFIX="${TARGET_PREFIX}" \
+        JANET_MANPATH="${TARGET_PREFIX}/share/man/man1" \
+        JANET_HEADERPATH="${TARGET_PREFIX}/include/janet" \
+        JANET_BINPATH="${TARGET_PREFIX}/bin" \
+        JANET_LIBPATH="${TARGET_PREFIX}/lib" \
+        JANET_MODPATH="${TARGET_PREFIX}/lib/janet" \
+        ../../build/janet ./bootstrap.janet ../jpm-local-config.janet
+      )
+    )
+  fi
+
+  ln -sf "${JANET_BIN}" "${BIN_DIR}/janet"
+  if [ -x "${JPM_BIN}" ]; then
+    ln -sf "${JPM_BIN}" "${BIN_DIR}/jpm"
+  fi
+  ln -sfn "${TARGET_PREFIX}/lib/janet" "${LIB_DIR}/janet"
+}
+
+write_pkg_wrapper() {
+  rm -f "${BIN_DIR}/pkg"
+  cat > "${BIN_DIR}/pkg" <<'EOF'
+#!/bin/sh
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+SOURCE_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+PREFIX_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+INSTALLED_LIB="${PREFIX_ROOT}/share/pkg/lib"
+if [ -f "$INSTALLED_LIB/pkg.janet" ] && [ -f "$INSTALLED_LIB/packages.janet" ]; then
+  ROOT="$INSTALLED_LIB"
+else
+  ROOT="$SOURCE_ROOT"
+fi
+JANET_BIN="${HOME}/.local/bin/janet"
+JANET_LIB="${HOME}/.local/lib/janet"
+export PKG_ROOT="$ROOT"
+export JANET_PATH="$JANET_LIB"
+cd "$ROOT" || exit 1
+if [ -x "$JANET_BIN" ]; then
+  exec "$JANET_BIN" "$ROOT/pkg.janet" "$@"
+fi
+exec janet "$ROOT/pkg.janet" "$@"
+EOF
+  chmod 755 "${BIN_DIR}/pkg"
+}
+
+write_pkg_cli() {
+  mkdir -p "${PKG_LIB_DIR}" "${CONFIG_DIR}"
+  rm -f "${PKG_LIB_DIR}/pkg.janet"
+  cat > "${PKG_LIB_DIR}/pkg.janet" <<'EOF'
 #!/usr/bin/env janet
 
 (import ./packages :as reg)
@@ -388,3 +513,56 @@
                 (if (= command "doctor")
                   (command-doctor)
                   (usage))))))))))
+EOF
+}
+
+write_pkg_registry() {
+  mkdir -p "${PKG_LIB_DIR}"
+  rm -f "${PKG_LIB_DIR}/packages.janet"
+  cat > "${PKG_LIB_DIR}/packages.janet" <<'EOF'
+(def packages
+  @{"hello-local"
+    @{:name "hello-local"
+      :version "0.1.0"
+      :source @{:type :link
+                :path "examples"}
+      :bins ["hello-local"]
+      :notes "Minimal local package for testing symlink install and removal."}
+
+    "janet"
+    @{:name "janet"
+      :version "1.41.2"
+      :source @{:type :url
+                :url "https://github.com/janet-lang/janet/archive/refs/tags/v1.41.2.tar.gz"
+                :archive :tar.gz
+                :strip-components 1}
+      :build ["make"
+              "make PREFIX=\"$PREFIX\" install"
+              "rm -rf build/jpm"
+              "git clone --depth=1 https://github.com/janet-lang/jpm.git build/jpm"
+              "PREFIX=\"$PREFIX\" JANET_MANPATH=\"$PREFIX/share/man/man1\" JANET_HEADERPATH=\"$PREFIX/include/janet\" JANET_BINPATH=\"$PREFIX/bin\" JANET_LIBPATH=\"$PREFIX/lib\" JANET_MODPATH=\"$PREFIX/lib/janet\" ./build/janet -e '(import ./build/jpm/jpm/make-config :as mc) (spit \"./build/jpm-local-config.janet\" (mc/generate-config nil true))'"
+              "cd build/jpm && PREFIX=\"$PREFIX\" JANET_MANPATH=\"$PREFIX/share/man/man1\" JANET_HEADERPATH=\"$PREFIX/include/janet\" JANET_BINPATH=\"$PREFIX/bin\" JANET_LIBPATH=\"$PREFIX/lib\" JANET_MODPATH=\"$PREFIX/lib/janet\" ../../build/janet ./bootstrap.janet ../jpm-local-config.janet"]
+      :bins ["janet" "jpm"]
+      :notes "Builds Janet and bootstraps jpm entirely inside the package prefix."}})
+
+packages
+EOF
+}
+
+install_pkg() {
+  mkdir -p "${BIN_DIR}" "${PKG_LIB_DIR}" "${CONFIG_DIR}"
+  write_pkg_wrapper
+  write_pkg_cli
+  write_pkg_registry
+
+  if [ -n "${SCRIPT_DIR}" ] && [ -d "${SCRIPT_DIR}/.git" ]; then
+    printf '%s\n' "${SCRIPT_DIR}" > "${SELF_SOURCE_FILE}"
+  fi
+}
+
+ensure_clt
+bootstrap_janet
+install_pkg
+
+printf '%s\n' "Installed Janet and pkg into ${PREFIX}."
+printf '%s\n' "Make sure ${BIN_DIR} is on your PATH."

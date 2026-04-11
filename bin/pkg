@@ -1,5 +1,13 @@
 #!/bin/sh
-ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+SOURCE_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+PREFIX_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+INSTALLED_LIB="${PREFIX_ROOT}/share/pkg/lib"
+if [ -f "$INSTALLED_LIB/pkg.janet" ] && [ -f "$INSTALLED_LIB/packages.janet" ]; then
+  ROOT="$INSTALLED_LIB"
+else
+  ROOT="$SOURCE_ROOT"
+fi
 JANET_BIN="${HOME}/.local/bin/janet"
 JANET_LIB="${HOME}/.local/lib/janet"
 export PKG_ROOT="$ROOT"
