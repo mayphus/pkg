@@ -856,6 +856,35 @@ write_pkg_registry() {
       :bins ["clojure" "clj"]
       :notes "Installs the official Clojure CLI tools distribution for macOS arm64."}
 
+    "python"
+    @{:name "python"
+      :version "3.14.2"
+      :source @{:type :url
+                :url "https://github.com/astral-sh/python-build-standalone/releases/download/20251217/cpython-3.14.2%2B20251217-aarch64-apple-darwin-install_only.tar.gz"
+                :archive :tar.gz
+                :strip-components 1
+                :sha256 "a603229a773a65a049492bb3a6e037c8e68e45624d937454cd90971d9f9fc96a"}
+      :build ["mkdir -p \"$PREFIX\""
+              "tar -cf - . | tar -xf - -C \"$PREFIX\""]
+      :bins ["python" "python3" "python3.14"
+             "pip" "pip3" "pip3.14"
+             "pydoc3" "pydoc3.14"
+             "python3-config" "python3.14-config"]
+      :notes "Installs the relocatable python-build-standalone macOS arm64 distribution. This currently tracks 3.14.2, one patch behind python.org 3.14.3."}
+
+    "uv"
+    @{:name "uv"
+      :version "0.11.6"
+      :source @{:type :url
+                :url "https://github.com/astral-sh/uv/releases/download/0.11.6/uv-aarch64-apple-darwin.tar.gz"
+                :archive :tar.gz
+                :sha256 "4b69a4e366ec38cd5f305707de95e12951181c448679a00dce2a78868dfc9f5b"}
+      :build ["mkdir -p \"$PREFIX/bin\""
+              "cp uv-aarch64-apple-darwin/uv \"$PREFIX/bin/uv\""
+              "chmod 755 \"$PREFIX/bin/uv\""]
+      :bins ["uv"]
+      :notes "Installs the official uv Apple Silicon macOS binary."}
+
     "google-chrome"
     @{:name "google-chrome"
       :version "stable"
