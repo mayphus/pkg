@@ -754,6 +754,19 @@ write_pkg_registry() {
       :bins ["gh"]
       :notes "Installs the prebuilt GitHub CLI macOS arm64 release archive."}
 
+    "codex"
+    @{:name "codex"
+      :version "0.120.0"
+      :source @{:type :url
+                :url "https://github.com/openai/codex/releases/download/rust-v0.120.0/codex-aarch64-apple-darwin.tar.gz"
+                :archive :tar.gz
+                :sha256 "b1083c438b752fa292057fb8c735f58d1323144a3deb9e5742c4e845152c95f0"}
+      :build ["mkdir -p \"$PREFIX/bin\""
+              "cp codex-aarch64-apple-darwin \"$PREFIX/bin/codex\""
+              "chmod 755 \"$PREFIX/bin/codex\""]
+      :bins ["codex"]
+      :notes "Installs the native OpenAI Codex CLI Apple Silicon macOS binary release."}
+
     "ripgrep"
     @{:name "ripgrep"
       :version "15.1.0"
