@@ -915,7 +915,8 @@ write_pkg_registry() {
       :source @{:type :url
                 :url "https://github.com/janet-lang/janet/archive/refs/tags/v1.41.2.tar.gz"
                 :archive :tar.gz
-                :strip-components 1}
+                :strip-components 1
+                :sha256 "168e97e1b790f6e9d1e43685019efecc4ee473d6b9f8c421b49c195336c0b725"}
       :build ["make"
               "make PREFIX=\"$PREFIX\" install"
               "rm -rf build/jpm"
