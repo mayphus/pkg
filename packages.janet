@@ -71,6 +71,29 @@
       :build ["mkdir -p \"$PREFIX\""
               "tar -cf - . | tar -xf - -C \"$PREFIX\""]
       :bins ["emacs" "emacsclient" "etags" "ctags"]
-      :notes "Installs the repo-built Emacs master macOS arm64 artifact from GitHub Releases."}})
+      :notes "Installs the repo-built Emacs master macOS arm64 artifact from GitHub Releases."}
+
+    "openjdk"
+    @{:name "openjdk"
+      :version "21.0.9+10"
+      :source @{:type :url
+                :url "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.9%2B10/OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.9_10.tar.gz"
+                :archive :tar.gz
+                :strip-components 1
+                :sha256 "55a40abeb0e174fdc70f769b34b50b70c3967e0b12a643e6a3e23f9a582aac16"}
+      :build ["mkdir -p \"$PREFIX\""
+              "tar -cf - . | tar -xf - -C \"$PREFIX\""]
+      :bins ["java" "javac" "jar" "jarsigner" "javadoc" "javap" "jlink" "jpackage" "jshell" "keytool"]
+      :links [@{:name "java" :path "Contents/Home/bin/java"}
+              @{:name "javac" :path "Contents/Home/bin/javac"}
+              @{:name "jar" :path "Contents/Home/bin/jar"}
+              @{:name "jarsigner" :path "Contents/Home/bin/jarsigner"}
+              @{:name "javadoc" :path "Contents/Home/bin/javadoc"}
+              @{:name "javap" :path "Contents/Home/bin/javap"}
+              @{:name "jlink" :path "Contents/Home/bin/jlink"}
+              @{:name "jpackage" :path "Contents/Home/bin/jpackage"}
+              @{:name "jshell" :path "Contents/Home/bin/jshell"}
+              @{:name "keytool" :path "Contents/Home/bin/keytool"}]
+      :notes "Installs Eclipse Temurin OpenJDK 21 for macOS arm64."}})
 
 packages

@@ -185,7 +185,9 @@
 
 (defn ensure-sha256 [archive-path expected]
   (if expected
-    (let [output (string/trim (os/shell (string "/usr/bin/shasum -a 256 " archive-path)))
+    (let [tmp-output (join-path (build-root) ".sha256-check")
+          _ (os/shell (string "/usr/bin/shasum -a 256 \"" archive-path "\" > \"" tmp-output "\""))
+          output (string/trim (slurp tmp-output))
           actual (first (string/split " " output))]
       (if (not (= actual expected))
         (fail (string "sha256 mismatch for " archive-path ": expected " expected ", got " actual))))))
