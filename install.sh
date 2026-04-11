@@ -1178,13 +1178,13 @@ write_pkg_registry() {
     "babashka"
     @{:name "babashka"
       :kind :cli
-      :version "1.12.209"
+      :version "1.12.217"
       :homepage "https://babashka.org/"
       :license "EPL-1.0"
       :source @{:type :url
-                :url "https://github.com/babashka/babashka/releases/download/v1.12.209/babashka-1.12.209-macos-aarch64.tar.gz"
+                :url "https://github.com/babashka/babashka/releases/download/v1.12.217/babashka-1.12.217-macos-aarch64.tar.gz"
                 :archive :tar.gz
-                :sha256 "92ec4624af3ce1fe09c177835836f23e60d018678c30ffcb83c1985c3a9c6d4f"}
+                :sha256 "c87637b58fe214a904374593941227a938c91a98962fe12bcd9ec8b666f7b8ca"}
       :install ["cp bb \"$PREFIX/bin/bb\""
               "chmod 755 \"$PREFIX/bin/bb\""]
       :bins ["bb"]
