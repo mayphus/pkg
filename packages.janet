@@ -33,6 +33,19 @@
               "cp gh_*_macOS_arm64/bin/gh \"$PREFIX/bin/gh\""
               "chmod 755 \"$PREFIX/bin/gh\""]
       :bins ["gh"]
-      :notes "Installs the prebuilt GitHub CLI macOS arm64 release archive."}})
+      :notes "Installs the prebuilt GitHub CLI macOS arm64 release archive."}
+
+    "ripgrep"
+    @{:name "ripgrep"
+      :version "15.1.0"
+      :source @{:type :url
+                :url "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-aarch64-apple-darwin.tar.gz"
+                :archive :tar.gz
+                :strip-components 1}
+      :build ["mkdir -p \"$PREFIX/bin\""
+              "cp rg \"$PREFIX/bin/rg\""
+              "chmod 755 \"$PREFIX/bin/rg\""]
+      :bins ["rg"]
+      :notes "Installs the prebuilt ripgrep macOS arm64 release archive."}})
 
 packages
