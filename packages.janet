@@ -15,8 +15,12 @@
                 :archive :tar.gz
                 :strip-components 1}
       :build ["make"
-              "make PREFIX=\"$PREFIX\" install"]
+              "make PREFIX=\"$PREFIX\" install"
+              "rm -rf build/jpm"
+              "git clone --depth=1 https://github.com/janet-lang/jpm.git build/jpm"
+              "PREFIX=\"$PREFIX\" JANET_MANPATH=\"$PREFIX/share/man/man1\" JANET_HEADERPATH=\"$PREFIX/include/janet\" JANET_BINPATH=\"$PREFIX/bin\" JANET_LIBPATH=\"$PREFIX/lib\" JANET_MODPATH=\"$PREFIX/lib/janet\" ./build/janet -e '(import ./build/jpm/jpm/make-config :as mc) (spit \"./build/jpm-local-config.janet\" (mc/generate-config nil true))'"
+              "cd build/jpm && PREFIX=\"$PREFIX\" JANET_MANPATH=\"$PREFIX/share/man/man1\" JANET_HEADERPATH=\"$PREFIX/include/janet\" JANET_BINPATH=\"$PREFIX/bin\" JANET_LIBPATH=\"$PREFIX/lib\" JANET_MODPATH=\"$PREFIX/lib/janet\" ../../build/janet ./bootstrap.janet ../jpm-local-config.janet"]
       :bins ["janet" "jpm"]
-      :notes "Builds Janet from an official source archive."}})
+      :notes "Builds Janet and bootstraps jpm entirely inside the package prefix."}})
 
 packages

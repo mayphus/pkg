@@ -2,6 +2,8 @@
 
 `lpkg` is a small Janet-based personal package manager aimed at replacing the part of Homebrew you actually use, not the whole Homebrew formula ecosystem.
 
+It is intentionally user-prefix only. `lpkg` installs into `~/.local` and uses `/tmp` for temporary build work; it should not write into `/usr/local`, `/opt/homebrew`, or other system prefixes.
+
 It installs into your user prefix instead of `/opt/homebrew`:
 
 - `~/.local/bin`
@@ -55,10 +57,10 @@ hello-local
 
 ## Bootstrapping Janet
 
-This prototype needs a working `janet` binary first. Two realistic bootstrap paths are:
+This prototype needs a working `janet` binary first. The intended bootstrap path is:
 
-1. install Janet once with Homebrew, then use `lpkg` to manage the rest
-2. build Janet from source manually, then use `lpkg` afterward
+1. build Janet once by hand into `~/.local`
+2. use `lpkg` afterward to manage Janet and other user tools
 
 After you have `janet`, put the wrapper on your `PATH`:
 
@@ -69,16 +71,25 @@ ln -sf ~/lpkg/bin/lpkg ~/.local/bin/lpkg
 
 Then ensure `~/.local/bin` is on your shell `PATH`.
 
+After that, `lpkg install janet` is designed to replace the bootstrap copy with an `lpkg`-managed Janet tree under `~/.local/opt/janet/<version>` and relink `~/.local/bin/janet` and `~/.local/bin/jpm`.
+
 ## Registry shape
 
 Package definitions live in `packages.janet` as Janet data:
 
 ```janet
-@{:name "hello-local"
-  :version "0.1.0"
-  :source @{:type :link
-            :path "examples"}
-  :bins ["hello-local"]}
+@{:name "janet"
+  :version "1.41.2"
+  :source @{:type :url
+            :url "https://github.com/janet-lang/janet/archive/refs/tags/v1.41.2.tar.gz"
+            :archive :tar.gz
+            :strip-components 1}
+  :build ["make"
+          "make PREFIX=\"$PREFIX\" install"
+          "rm -rf build/jpm"
+          "git clone --depth=1 https://github.com/janet-lang/jpm.git build/jpm"
+          "PREFIX=\"$PREFIX\" JANET_MANPATH=\"$PREFIX/share/man/man1\" JANET_HEADERPATH=\"$PREFIX/include/janet\" JANET_BINPATH=\"$PREFIX/bin\" JANET_LIBPATH=\"$PREFIX/lib\" JANET_MODPATH=\"$PREFIX/lib/janet\" ./build/janet ./build/jpm/bootstrap.janet ./build/jpm-local-config.janet"]
+  :bins ["janet" "jpm"]}
 ```
 
 ## Practical limits

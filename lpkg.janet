@@ -52,11 +52,11 @@
 (defn build-root []
   (join-path (share-dir) "build"))
 
-(defn env-with [extra]
-  (let [env (os/environ)]
-    (each [k v] extra
-      (put env k v))
-    env))
+(defn shell-assignments [env]
+  (var parts @[])
+  (eachk key env
+    (array/push parts (string "export " key "=\"" (get env key) "\";")))
+  (string/join parts " "))
 
 (defn run [args &opt env]
   (print "$ " (string/join args " "))
@@ -65,8 +65,12 @@
     (os/execute args :px)))
 
 (defn run-shell [command env]
-  (print "$ " command)
-  (os/execute ["/bin/sh" "-lc" command] :epx env))
+  (def shell-command
+    (if env
+      (string (shell-assignments env) " " command)
+      command))
+  (print "$ " shell-command)
+  (os/execute ["/bin/sh" "-lc" shell-command] :px))
 
 (defn ensure-layout []
   (run ["/bin/mkdir" "-p"
@@ -86,12 +90,11 @@
   (join-path (package-build-dir pkg) "src"))
 
 (defn package-env [pkg]
-  (env-with @{"PREFIX" (package-install-dir pkg)
-              "SRC_DIR" (package-source-dir pkg)
-              "BUILD_DIR" (package-source-dir pkg)
-              "PKG_NAME" (get pkg :name)
-              "PKG_VERSION" (get pkg :version)
-              "PATH" (or (os/getenv "PATH") "")}))
+  @{"PREFIX" (package-install-dir pkg)
+    "SRC_DIR" (package-source-dir pkg)
+    "BUILD_DIR" (package-source-dir pkg)
+    "PKG_NAME" (get pkg :name)
+    "PKG_VERSION" (get pkg :version)})
 
 (defn expand-project-path [value]
   (if (or (= "" value)
