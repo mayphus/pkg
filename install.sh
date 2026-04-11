@@ -731,15 +731,15 @@ write_pkg_registry() {
 
     "emacs"
     @{:name "emacs"
-      :version "30.1"
+      :version "master"
       :source @{:type :github-release
-                :tag "emacs-30.1"
-                :file "emacs-30.1-macos-arm64-prefix.tar.gz"
+                :tag "emacs-master"
+                :file "emacs-master-macos-arm64-prefix.tar.gz"
                 :archive :tar.gz}
       :build ["mkdir -p \"$PREFIX\""
               "tar -cf - . | tar -xf - -C \"$PREFIX\""]
       :bins ["emacs" "emacsclient" "etags" "ctags"]
-      :notes "Installs the repo-built Emacs macOS arm64 artifact from GitHub Releases."}})
+      :notes "Installs the repo-built Emacs master macOS arm64 artifact from GitHub Releases."}})
 
 packages
 EOF_PKG_REGISTRY

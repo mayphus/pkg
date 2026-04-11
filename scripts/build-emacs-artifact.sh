@@ -9,9 +9,8 @@ fi
 EMACS_VERSION="${EMACS_VERSION:-30.1}"
 WORK_ROOT="${WORK_ROOT:-$(mktemp -d /tmp/pkg-emacs-build.XXXXXX)}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-${PWD}/dist}"
-ARTIFACT_NAME="emacs-${EMACS_VERSION}-macos-arm64-prefix.tar.gz"
-SOURCE_URL="https://ftp.gnu.org/gnu/emacs/emacs-${EMACS_VERSION}.tar.xz"
-SOURCE_ARCHIVE="${WORK_ROOT}/emacs-${EMACS_VERSION}.tar.xz"
+EMACS_CHANNEL="${EMACS_CHANNEL:-master}"
+ARTIFACT_NAME="emacs-${EMACS_CHANNEL}-macos-arm64-prefix.tar.gz"
 SOURCE_DIR="${WORK_ROOT}/src"
 INSTALL_ROOT="${WORK_ROOT}/prefix"
 STAGE_ROOT="${WORK_ROOT}/stage"
@@ -27,8 +26,7 @@ mkdir -p "${ARTIFACT_DIR}" "${SOURCE_DIR}" "${INSTALL_ROOT}" "${STAGE_ROOT}"
 brew update
 brew install autoconf automake pkg-config texinfo gnutls jpeg-turbo libpng libtiff little-cms2 jansson tree-sitter
 
-curl -L "${SOURCE_URL}" -o "${SOURCE_ARCHIVE}"
-tar -xJf "${SOURCE_ARCHIVE}" -C "${SOURCE_DIR}" --strip-components 1
+git clone --depth=1 https://git.savannah.gnu.org/git/emacs.git "${SOURCE_DIR}"
 
 (
   cd "${SOURCE_DIR}"

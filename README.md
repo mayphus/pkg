@@ -117,6 +117,8 @@ Once a release asset exists and `PKG_RELEASE_REPO` is configured, Emacs can be i
 pkg install emacs
 ```
 
+This repo currently treats Emacs as a `master` channel package built on `macos-26`, not as a pinned stable release.
+
 ## Registry shape
 
 Package definitions live in `packages.janet` as Janet data:

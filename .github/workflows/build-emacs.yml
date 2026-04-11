@@ -2,36 +2,30 @@ name: Build Emacs Artifact
 
 on:
   workflow_dispatch:
-    inputs:
-      emacs_version:
-        description: GNU Emacs version to build
-        required: true
-        default: "30.1"
-
 permissions:
   contents: write
 
 jobs:
   build-emacs:
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Emacs prefix artifact
+      - name: Build Emacs master prefix artifact
         run: |
           chmod 755 scripts/build-emacs-artifact.sh
-          EMACS_VERSION="${{ github.event.inputs.emacs_version }}" scripts/build-emacs-artifact.sh
+          EMACS_CHANNEL=master scripts/build-emacs-artifact.sh
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: emacs-${{ github.event.inputs.emacs_version }}-macos-arm64-prefix
+          name: emacs-master-macos-arm64-prefix
           path: dist/*
 
       - name: Publish release asset
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: emacs-${{ github.event.inputs.emacs_version }}
+          tag_name: emacs-master
           files: dist/*
           generate_release_notes: true
