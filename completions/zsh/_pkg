@@ -14,6 +14,7 @@ _pkg_installed_packages() {
 
 local -a commands
 commands=(
+  'help:show general or command help'
   'list:show registry packages'
   'search:search registry packages'
   'installed:show installed packages'
@@ -42,6 +43,13 @@ case $state in
     case "${words[2]}" in
       search)
         _message 'search term'
+        ;;
+      help)
+        if (( CURRENT == 3 )); then
+          local -a help_topics
+          help_topics=(help list search installed show info install reinstall remove upgrade self-upgrade cleanup audit version doctor)
+          _describe -t topics 'help topic' help_topics
+        fi
         ;;
       show|install|reinstall)
         _pkg_registry_packages
