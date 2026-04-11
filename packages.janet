@@ -287,6 +287,24 @@
               "chmod 755 \"$PREFIX/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\""]
       :apps [@{:name "Google Chrome.app"
                :path "Applications/Google Chrome.app"}]
-      :notes "Installs Google Chrome from the official stable macOS disk image into the package prefix."}})
+      :notes "Installs Google Chrome from the official stable macOS disk image into the package prefix."}
+
+    "kicad"
+    @{:name "kicad"
+      :kind :app
+      :version "10.0.0"
+      :homepage "https://www.kicad.org/"
+      :license "GPL-3.0-or-later"
+      :source @{:type :url
+                :url "https://github.com/KiCad/kicad-source-mirror/releases/download/10.0.0/kicad-unified-universal-10.0.0.dmg"
+                :file-name "kicad-unified-universal-10.0.0.dmg"
+                :archive :dmg
+                :sha256 "e0913a3df62aacfb76b9a8282a2c8389f5a06cae6ab3d1666ac753e0dbd242c8"}
+      :build ["mkdir -p \"$PREFIX/Applications\""
+              "MOUNT_DIR=\"$BUILD_DIR/mnt\"; rm -rf \"$MOUNT_DIR\"; mkdir -p \"$MOUNT_DIR\"; cleanup(){ /usr/bin/hdiutil detach \"$MOUNT_DIR\" -quiet >/dev/null 2>&1 || true; }; trap cleanup EXIT INT TERM; /usr/bin/hdiutil attach \"$SRC_DIR/kicad-unified-universal-10.0.0.dmg\" -mountpoint \"$MOUNT_DIR\" -nobrowse -quiet; cp -R \"$MOUNT_DIR/KiCad/KiCad.app\" \"$PREFIX/Applications/KiCad.app\""
+              "chmod 755 \"$PREFIX/Applications/KiCad.app/Contents/MacOS/kicad\""]
+      :apps [@{:name "KiCad.app"
+               :path "Applications/KiCad.app"}]
+      :notes "Installs the official KiCad 10.0.0 macOS universal app into ~/Applications."}})
 
 packages
