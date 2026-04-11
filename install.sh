@@ -616,6 +616,13 @@ write_pkg_cli() {
         (fail "no pkg source checkout recorded; rerun install.sh from a checkout")))
     (fail (string "upgrade is only implemented for pkg; use install for " name))))
 
+(defn reinstall-package [name]
+  (let [pkg (package-by-name name)
+        version (get pkg :version)]
+    (if (read-manifest name version)
+      (remove-package name))
+    (install-package name)))
+
 (defn command-list []
   (print "available packages:")
   (eachk name reg/packages
@@ -721,6 +728,7 @@ write_pkg_cli() {
   (print "  installed            show installed packages")
   (print "  show <pkg>           show package metadata")
   (print "  install <pkg>        build or link a package")
+  (print "  reinstall <pkg>      remove and install current package version")
   (print "  remove <pkg>         remove a package")
   (print "  upgrade <pkg>        upgrade an installed package")
   (print "  doctor               create layout and print paths"))
@@ -744,17 +752,21 @@ write_pkg_cli() {
               (if (get args 1)
                 (install-package (get args 1))
                 (fail "install requires a package name"))
-              (if (= command "remove")
+              (if (= command "reinstall")
                 (if (get args 1)
-                  (remove-package (get args 1))
-                  (fail "remove requires a package name"))
-                (if (= command "upgrade")
+                  (reinstall-package (get args 1))
+                  (fail "reinstall requires a package name"))
+                (if (= command "remove")
                   (if (get args 1)
-                    (upgrade-package (get args 1))
-                    (fail "upgrade requires a package name"))
-                  (if (= command "doctor")
-                    (command-doctor)
-                    (usage)))))))))))
+                    (remove-package (get args 1))
+                    (fail "remove requires a package name"))
+                  (if (= command "upgrade")
+                    (if (get args 1)
+                      (upgrade-package (get args 1))
+                      (fail "upgrade requires a package name"))
+                    (if (= command "doctor")
+                      (command-doctor)
+                      (usage))))))))))))
 EOF_PKG_CLI
 }
 
