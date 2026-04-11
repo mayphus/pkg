@@ -141,12 +141,9 @@
                 :url "https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg"
                 :file-name "googlechrome.dmg"
                 :archive :dmg}
-      :build ["mkdir -p \"$PREFIX/Applications\" \"$PREFIX/bin\""
+      :build ["mkdir -p \"$PREFIX/Applications\""
               "MOUNT_DIR=\"$BUILD_DIR/mnt\"; rm -rf \"$MOUNT_DIR\"; mkdir -p \"$MOUNT_DIR\"; cleanup(){ /usr/bin/hdiutil detach \"$MOUNT_DIR\" -quiet >/dev/null 2>&1 || true; }; trap cleanup EXIT INT TERM; /usr/bin/hdiutil attach \"$SRC_DIR/googlechrome.dmg\" -mountpoint \"$MOUNT_DIR\" -nobrowse -quiet; cp -R \"$MOUNT_DIR/Google Chrome.app\" \"$PREFIX/Applications/Google Chrome.app\""
-              "chmod 755 \"$PREFIX/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\""
-              "printf '%s\\n' '#!/bin/sh' 'exec \"$HOME/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" \"$@\"' > \"$PREFIX/bin/google-chrome\""
-              "chmod 755 \"$PREFIX/bin/google-chrome\""]
-      :bins ["google-chrome"]
+              "chmod 755 \"$PREFIX/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\""]
       :apps [@{:name "Google Chrome.app"
                :path "Applications/Google Chrome.app"}]
       :notes "Installs Google Chrome from the official stable macOS disk image into the package prefix."}})

@@ -132,10 +132,14 @@
     "PKG_NAME" (get pkg :name)
     "PKG_VERSION" (get pkg :version)})
 
+(defn package-bins [pkg]
+  (or (get pkg :bins)
+      @[]))
+
 (defn package-links [pkg]
   (or (get pkg :links)
       (let [links @[]]
-        (each bin-name (get pkg :bins)
+        (each bin-name (package-bins pkg)
           (array/push links @{:name bin-name
                               :path (join-path "bin" bin-name)}))
         links)))
@@ -293,7 +297,7 @@
               @{:name (get pkg :name)
                 :version (get pkg :version)
                 :prefix (package-install-dir pkg)
-                :bins (get pkg :bins)
+                :bins (package-bins pkg)
                 :linked linked
                 :apps apps
                 :source (manifest-source-data source)})
@@ -376,7 +380,7 @@
     (if (os/stat dest)
       (fail (string "refusing to replace existing app bundle: " dest)))
     (run ["/bin/mkdir" "-p" (dirname dest)])
-    (run ["/bin/cp" "-R" source dest])
+    (run ["/bin/mv" source dest])
     (print "installed app " (get app :name) " -> " dest)))
 
 (defn link-package-exposed [pkg]
@@ -524,7 +528,7 @@
         (print "url:     " "<configure PKG_RELEASE_REPO or ~/.config/pkg/release-repo>")))
     (if (get (get pkg :source) :path)
       (print "path:    " (get (get pkg :source) :path)))
-    (print "bins:    " (string/join (get pkg :bins) ", "))
+    (print "bins:    " (string/join (package-bins pkg) ", "))
     (if (get pkg :notes)
       (print "notes:   " (get pkg :notes)))))
 

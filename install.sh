@@ -259,10 +259,14 @@ write_pkg_cli() {
     "PKG_NAME" (get pkg :name)
     "PKG_VERSION" (get pkg :version)})
 
+(defn package-bins [pkg]
+  (or (get pkg :bins)
+      @[]))
+
 (defn package-links [pkg]
   (or (get pkg :links)
       (let [links @[]]
-        (each bin-name (get pkg :bins)
+        (each bin-name (package-bins pkg)
           (array/push links @{:name bin-name
                               :path (join-path "bin" bin-name)}))
         links)))
@@ -420,7 +424,7 @@ write_pkg_cli() {
               @{:name (get pkg :name)
                 :version (get pkg :version)
                 :prefix (package-install-dir pkg)
-                :bins (get pkg :bins)
+                :bins (package-bins pkg)
                 :linked linked
                 :apps apps
                 :source (manifest-source-data source)})
@@ -503,7 +507,7 @@ write_pkg_cli() {
     (if (os/stat dest)
       (fail (string "refusing to replace existing app bundle: " dest)))
     (run ["/bin/mkdir" "-p" (dirname dest)])
-    (run ["/bin/cp" "-R" source dest])
+    (run ["/bin/mv" source dest])
     (print "installed app " (get app :name) " -> " dest)))
 
 (defn link-package-exposed [pkg]
@@ -651,7 +655,7 @@ write_pkg_cli() {
         (print "url:     " "<configure PKG_RELEASE_REPO or ~/.config/pkg/release-repo>")))
     (if (get (get pkg :source) :path)
       (print "path:    " (get (get pkg :source) :path)))
-    (print "bins:    " (string/join (get pkg :bins) ", "))
+    (print "bins:    " (string/join (package-bins pkg) ", "))
     (if (get pkg :notes)
       (print "notes:   " (get pkg :notes)))))
 
@@ -856,12 +860,9 @@ write_pkg_registry() {
                 :url "https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg"
                 :file-name "googlechrome.dmg"
                 :archive :dmg}
-      :build ["mkdir -p \"$PREFIX/Applications\" \"$PREFIX/bin\""
+      :build ["mkdir -p \"$PREFIX/Applications\""
               "MOUNT_DIR=\"$BUILD_DIR/mnt\"; rm -rf \"$MOUNT_DIR\"; mkdir -p \"$MOUNT_DIR\"; cleanup(){ /usr/bin/hdiutil detach \"$MOUNT_DIR\" -quiet >/dev/null 2>&1 || true; }; trap cleanup EXIT INT TERM; /usr/bin/hdiutil attach \"$SRC_DIR/googlechrome.dmg\" -mountpoint \"$MOUNT_DIR\" -nobrowse -quiet; cp -R \"$MOUNT_DIR/Google Chrome.app\" \"$PREFIX/Applications/Google Chrome.app\""
-              "chmod 755 \"$PREFIX/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\""
-              "printf '%s\\n' '#!/bin/sh' 'exec \"$HOME/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" \"$@\"' > \"$PREFIX/bin/google-chrome\""
-              "chmod 755 \"$PREFIX/bin/google-chrome\""]
-      :bins ["google-chrome"]
+              "chmod 755 \"$PREFIX/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\""]
       :apps [@{:name "Google Chrome.app"
                :path "Applications/Google Chrome.app"}]
       :notes "Installs Google Chrome from the official stable macOS disk image into the package prefix."}})
