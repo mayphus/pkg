@@ -856,6 +856,19 @@ write_pkg_registry() {
       :bins ["clojure" "clj"]
       :notes "Installs the official Clojure CLI tools distribution for macOS arm64."}
 
+    "babashka"
+    @{:name "babashka"
+      :version "1.12.209"
+      :source @{:type :url
+                :url "https://github.com/babashka/babashka/releases/download/v1.12.209/babashka-1.12.209-macos-aarch64.tar.gz"
+                :archive :tar.gz
+                :sha256 "92ec4624af3ce1fe09c177835836f23e60d018678c30ffcb83c1985c3a9c6d4f"}
+      :build ["mkdir -p \"$PREFIX/bin\""
+              "cp bb \"$PREFIX/bin/bb\""
+              "chmod 755 \"$PREFIX/bin/bb\""]
+      :bins ["bb"]
+      :notes "Installs the official Babashka Apple Silicon macOS binary release."}
+
     "minimal-racket"
     @{:name "minimal-racket"
       :version "9.1"
