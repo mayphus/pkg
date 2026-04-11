@@ -858,6 +858,28 @@
                        "  "
                        (source-url source))))))))))
 
+(defn command-cleanup [& flags]
+  (ensure-layout)
+  (var clean-cache? false)
+  (each flag flags
+    (if (= flag "--cache")
+      (set clean-cache? true)))
+  (let [clean-cache? clean-cache?
+        build-dir (build-root)
+        pkg-cache-dir (cache-dir)]
+    (if (os/stat build-dir)
+      (do
+        (run ["/bin/rm" "-rf" build-dir])
+        (run ["/bin/mkdir" "-p" build-dir])))
+    (print "cleaned build state: " build-dir)
+    (if clean-cache?
+      (do
+        (if (os/stat pkg-cache-dir)
+          (do
+            (run ["/bin/rm" "-rf" pkg-cache-dir])
+            (run ["/bin/mkdir" "-p" pkg-cache-dir])))
+        (print "cleaned cache: " pkg-cache-dir)))))
+
 (defn usage []
   (print "pkg <command> [args]")
   (print "")
@@ -871,6 +893,7 @@
   (print "  reinstall <pkg>      remove and install current package version")
   (print "  remove <pkg>         remove a package")
   (print "  upgrade <pkg>        upgrade an installed package")
+  (print "  cleanup [--cache]    remove build state, optionally cache")
   (print "  audit                report packages missing sha256")
   (print "  doctor               create layout and print paths"))
 
@@ -909,8 +932,10 @@
                       (if (get args 1)
                         (upgrade-package (get args 1))
                         (fail "upgrade requires a package name"))
+                      (if (= command "cleanup")
+                        (apply command-cleanup (tuple/slice args 1))
                       (if (= command "doctor")
                         (command-doctor)
                         (if (= command "audit")
                           (command-audit)
-                          (usage))))))))))))))
+                          (usage)))))))))))))))
