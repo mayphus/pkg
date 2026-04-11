@@ -613,11 +613,21 @@ write_pkg_cli() {
                     (string/join missing " ")
                     ")")))))
 
-(defn run-build-steps [pkg]
+(defn package-phase-commands [pkg phase]
+  (or (get pkg phase)
+      (if (= phase :build)
+        (or (get pkg :build) @[])
+        @[])))
+
+(defn run-package-phase [pkg phase]
   (let [env (package-env pkg)]
-    (run ["/bin/mkdir" "-p" (join-path (package-install-dir pkg) "bin")])
-    (each command (get pkg :build)
+    (each command (package-phase-commands pkg phase)
       (run-shell (string "cd \"$SRC_DIR\" && " command) env))))
+
+(defn run-package-phases [pkg]
+  (run ["/bin/mkdir" "-p" (join-path (package-install-dir pkg) "bin")])
+  (each phase [:build :install :post-install]
+    (run-package-phase pkg phase)))
 
 (defn install-package [name]
   (ensure-layout)
@@ -641,7 +651,7 @@ write_pkg_cli() {
           :github-release (fetch-url-source pkg)
           :git (fetch-git-source pkg)
           (fail (string "unsupported source type: " (get source :type))))
-        (run-build-steps pkg)
+        (run-package-phases pkg)
         (install-package-apps pkg)
         (link-package-exposed pkg)
         (write-manifest pkg)
@@ -933,8 +943,7 @@ write_pkg_registry() {
                 :url "https://github.com/cli/cli/releases/download/v2.89.0/gh_2.89.0_macOS_arm64.zip"
                 :archive :zip
                 :sha256 "2423d02ec0a2094898c378703a1b28a5846c08700f87461363857cb8cb3fda94"}
-      :build ["mkdir -p \"$PREFIX/bin\""
-              "cp gh_*_macOS_arm64/bin/gh \"$PREFIX/bin/gh\""
+      :install ["cp gh_*_macOS_arm64/bin/gh \"$PREFIX/bin/gh\""
               "chmod 755 \"$PREFIX/bin/gh\""]
       :bins ["gh"]
       :notes "Installs the prebuilt GitHub CLI macOS arm64 release archive."}
@@ -946,8 +955,7 @@ write_pkg_registry() {
                 :url "https://github.com/openai/codex/releases/download/rust-v0.120.0/codex-aarch64-apple-darwin.tar.gz"
                 :archive :tar.gz
                 :sha256 "b1083c438b752fa292057fb8c735f58d1323144a3deb9e5742c4e845152c95f0"}
-      :build ["mkdir -p \"$PREFIX/bin\""
-              "cp codex-aarch64-apple-darwin \"$PREFIX/bin/codex\""
+      :install ["cp codex-aarch64-apple-darwin \"$PREFIX/bin/codex\""
               "chmod 755 \"$PREFIX/bin/codex\""]
       :bins ["codex"]
       :notes "Installs the native OpenAI Codex CLI Apple Silicon macOS binary release."}
@@ -977,8 +985,7 @@ write_pkg_registry() {
                 :archive :tar.gz
                 :strip-components 1
                 :sha256 "378e973289176ca0c6054054ee7f631a065874a352bf43f0fa60ef079b6ba715"}
-      :build ["mkdir -p \"$PREFIX/bin\""
-              "cp rg \"$PREFIX/bin/rg\""
+      :install ["cp rg \"$PREFIX/bin/rg\""
               "chmod 755 \"$PREFIX/bin/rg\""]
       :bins ["rg"]
       :notes "Installs the prebuilt ripgrep macOS arm64 release archive."}
@@ -991,8 +998,8 @@ write_pkg_registry() {
                 :archive :tar.gz
                 :strip-components 1
                 :sha256 "68ac45dc78c0c311ada06200ffc3c285e74223ba208061f8d15ffac25e44b2ec"}
-      :build ["make"
-              "make PREFIX=\"$PREFIX\" MANDIR=\"$PREFIX/share/man\" install"
+      :build ["make"]
+      :install ["make PREFIX=\"$PREFIX\" MANDIR=\"$PREFIX/share/man\" install"
               "chmod 755 \"$PREFIX/bin/tree\""]
       :bins ["tree"]
       :notes "Builds the upstream tree source release into the package prefix."}
@@ -1020,8 +1027,7 @@ write_pkg_registry() {
                 :archive :tar.gz
                 :strip-components 1
                 :sha256 "55a40abeb0e174fdc70f769b34b50b70c3967e0b12a643e6a3e23f9a582aac16"}
-      :build ["mkdir -p \"$PREFIX\""
-              "tar -cf - . | tar -xf - -C \"$PREFIX\""]
+      :install ["tar -cf - . | tar -xf - -C \"$PREFIX\""]
       :bins ["java" "javac" "jar" "jarsigner" "javadoc" "javap" "jlink" "jpackage" "jshell" "keytool"]
       :links [@{:name "java" :path "Contents/Home/bin/java"}
               @{:name "javac" :path "Contents/Home/bin/javac"}
@@ -1042,8 +1048,7 @@ write_pkg_registry() {
                 :url "https://github.com/oven-sh/bun/releases/download/bun-v1.3.12/bun-darwin-aarch64.zip"
                 :archive :zip
                 :sha256 "6c4bb87dd013ed1a8d6a16e357a3d094959fd5530b4d7061f7f3680c3c7cea1c"}
-      :build ["mkdir -p \"$PREFIX/bin\""
-              "cp bun-darwin-aarch64/bun \"$PREFIX/bin/bun\""
+      :install ["cp bun-darwin-aarch64/bun \"$PREFIX/bin/bun\""
               "printf '%s\n' '#!/bin/sh' 'exec \"$(dirname \"$0\")/bun\" x \"$@\"' > \"$PREFIX/bin/bunx\""
               "chmod 755 \"$PREFIX/bin/bun\" \"$PREFIX/bin/bunx\""]
       :bins ["bun" "bunx"]
@@ -1081,8 +1086,7 @@ write_pkg_registry() {
                 :url "https://github.com/babashka/babashka/releases/download/v1.12.209/babashka-1.12.209-macos-aarch64.tar.gz"
                 :archive :tar.gz
                 :sha256 "92ec4624af3ce1fe09c177835836f23e60d018678c30ffcb83c1985c3a9c6d4f"}
-      :build ["mkdir -p \"$PREFIX/bin\""
-              "cp bb \"$PREFIX/bin/bb\""
+      :install ["cp bb \"$PREFIX/bin/bb\""
               "chmod 755 \"$PREFIX/bin/bb\""]
       :bins ["bb"]
       :notes "Installs the official Babashka Apple Silicon macOS binary release."}
@@ -1095,8 +1099,7 @@ write_pkg_registry() {
                 :archive :tar.gz
                 :strip-components 1
                 :sha256 "e53b5d061f855e74548b7d8b5bea6bec689d54d05ed87e485e534816c9b096bc"}
-      :build ["mkdir -p \"$PREFIX\""
-              "tar -cf - . | tar -xf - -C \"$PREFIX\""]
+      :install ["tar -cf - . | tar -xf - -C \"$PREFIX\""]
       :bins ["racket" "raco"]
       :notes "Installs the relocatable Minimal Racket macOS arm64 distribution."}
 
@@ -1108,8 +1111,7 @@ write_pkg_registry() {
                 :archive :tar.gz
                 :strip-components 1
                 :sha256 "a603229a773a65a049492bb3a6e037c8e68e45624d937454cd90971d9f9fc96a"}
-      :build ["mkdir -p \"$PREFIX\""
-              "tar -cf - . | tar -xf - -C \"$PREFIX\""]
+      :install ["tar -cf - . | tar -xf - -C \"$PREFIX\""]
       :bins ["python" "python3" "python3.14"
              "pip" "pip3" "pip3.14"
              "pydoc3" "pydoc3.14"
@@ -1123,8 +1125,7 @@ write_pkg_registry() {
                 :url "https://github.com/astral-sh/uv/releases/download/0.11.6/uv-aarch64-apple-darwin.tar.gz"
                 :archive :tar.gz
                 :sha256 "4b69a4e366ec38cd5f305707de95e12951181c448679a00dce2a78868dfc9f5b"}
-      :build ["mkdir -p \"$PREFIX/bin\""
-              "cp uv-aarch64-apple-darwin/uv \"$PREFIX/bin/uv\""
+      :install ["cp uv-aarch64-apple-darwin/uv \"$PREFIX/bin/uv\""
               "chmod 755 \"$PREFIX/bin/uv\""]
       :bins ["uv"]
       :notes "Installs the official uv Apple Silicon macOS binary."}

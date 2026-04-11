@@ -486,11 +486,21 @@
                     (string/join missing " ")
                     ")")))))
 
-(defn run-build-steps [pkg]
+(defn package-phase-commands [pkg phase]
+  (or (get pkg phase)
+      (if (= phase :build)
+        (or (get pkg :build) @[])
+        @[])))
+
+(defn run-package-phase [pkg phase]
   (let [env (package-env pkg)]
-    (run ["/bin/mkdir" "-p" (join-path (package-install-dir pkg) "bin")])
-    (each command (get pkg :build)
+    (each command (package-phase-commands pkg phase)
       (run-shell (string "cd \"$SRC_DIR\" && " command) env))))
+
+(defn run-package-phases [pkg]
+  (run ["/bin/mkdir" "-p" (join-path (package-install-dir pkg) "bin")])
+  (each phase [:build :install :post-install]
+    (run-package-phase pkg phase)))
 
 (defn install-package [name]
   (ensure-layout)
@@ -514,7 +524,7 @@
           :github-release (fetch-url-source pkg)
           :git (fetch-git-source pkg)
           (fail (string "unsupported source type: " (get source :type))))
-        (run-build-steps pkg)
+        (run-package-phases pkg)
         (install-package-apps pkg)
         (link-package-exposed pkg)
         (write-manifest pkg)
