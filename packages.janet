@@ -51,6 +51,7 @@
     "gemini"
     @{:name "gemini"
       :version "0.37.1"
+      :depends ["bun"]
       :source @{:type :url
                 :url "https://registry.npmjs.org/@google/gemini-cli/-/gemini-cli-0.37.1.tgz"
                 :archive :tar.gz

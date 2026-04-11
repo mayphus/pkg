@@ -148,6 +148,10 @@
   (or (get pkg :apps)
       @[]))
 
+(defn package-depends [pkg]
+  (or (get pkg :depends)
+      @[]))
+
 (defn expand-project-path [value]
   (if (or (= "" value)
           (= "/" (string/slice value 0 1)))
@@ -428,6 +432,24 @@
     (if (get source :ref)
       (run ["git" "-C" src-dir "checkout" (get source :ref)]))))
 
+(defn installed-current-version? [name]
+  (let [pkg (package-by-name name)]
+    (not (= nil (read-manifest name (get pkg :version))))))
+
+(defn ensure-package-dependencies [pkg]
+  (let [missing @[]]
+    (each dep-name (package-depends pkg)
+      (if (not (installed-current-version? dep-name))
+        (array/push missing dep-name)))
+    (if (> (length missing) 0)
+      (fail (string "missing dependencies for "
+                    (get pkg :name)
+                    ": "
+                    (string/join missing ", ")
+                    " (install with: pkg install "
+                    (string/join missing " ")
+                    ")")))))
+
 (defn run-build-steps [pkg]
   (let [env (package-env pkg)]
     (run ["/bin/mkdir" "-p" (join-path (package-install-dir pkg) "bin")])
@@ -439,6 +461,7 @@
   (let [pkg (package-by-name name)
         source (get pkg :source)
         target (package-install-dir pkg)]
+    (ensure-package-dependencies pkg)
     (if (= :link (get source :type))
       (do
         (if (os/stat target)
@@ -582,6 +605,8 @@
     (if (get (get pkg :source) :path)
       (print "path:    " (get (get pkg :source) :path)))
     (print "bins:    " (string/join (package-bins pkg) ", "))
+    (if (> (length (package-depends pkg)) 0)
+      (print "depends: " (string/join (package-depends pkg) ", ")))
     (if (get pkg :notes)
       (print "notes:   " (get pkg :notes)))))
 
