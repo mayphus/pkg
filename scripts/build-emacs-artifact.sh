@@ -34,9 +34,7 @@ git clone --depth=1 https://git.savannah.gnu.org/git/emacs.git "${SOURCE_DIR}"
   ./configure \
     --prefix="${INSTALL_ROOT}" \
     --with-ns \
-    --with-json \
     --with-modules \
-    --with-native-compilation=aot \
     --with-tree-sitter \
     --without-x \
     --disable-silent-rules
