@@ -305,6 +305,24 @@
               "chmod 755 \"$PREFIX/Applications/KiCad.app/Contents/MacOS/kicad\""]
       :apps [@{:name "KiCad.app"
                :path "Applications/KiCad.app"}]
-      :notes "Installs the official KiCad 10.0.0 macOS universal app into ~/Applications."}})
+      :notes "Installs the official KiCad 10.0.0 macOS universal app into ~/Applications."}
+
+    "freecad"
+    @{:name "freecad"
+      :kind :app
+      :version "1.1.0"
+      :homepage "https://www.freecad.org/"
+      :license "LGPL-2.1-or-later"
+      :source @{:type :url
+                :url "https://github.com/FreeCAD/FreeCAD/releases/download/1.1.0/FreeCAD_1.1.0-macOS-arm64-py311.dmg"
+                :file-name "FreeCAD_1.1.0-macOS-arm64-py311.dmg"
+                :archive :dmg
+                :sha256 "52b069f86471ccf4fdd535c42cd9b74b9a8079a7abfd0f51ff19b0a30c6d795b"}
+      :build ["mkdir -p \"$PREFIX/Applications\""
+              "MOUNT_DIR=\"$BUILD_DIR/mnt\"; rm -rf \"$MOUNT_DIR\"; mkdir -p \"$MOUNT_DIR\"; cleanup(){ /usr/bin/hdiutil detach \"$MOUNT_DIR\" -quiet >/dev/null 2>&1 || true; }; trap cleanup EXIT INT TERM; /usr/bin/hdiutil attach \"$SRC_DIR/FreeCAD_1.1.0-macOS-arm64-py311.dmg\" -mountpoint \"$MOUNT_DIR\" -nobrowse -quiet; cp -R \"$MOUNT_DIR/FreeCAD.app\" \"$PREFIX/Applications/FreeCAD.app\""
+              "chmod 755 \"$PREFIX/Applications/FreeCAD.app/Contents/MacOS/FreeCAD\""]
+      :apps [@{:name "FreeCAD.app"
+               :path "Applications/FreeCAD.app"}]
+      :notes "Installs the official FreeCAD 1.1.0 Apple Silicon macOS app into ~/Applications."}})
 
 packages
