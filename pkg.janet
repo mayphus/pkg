@@ -56,6 +56,9 @@
 (defn applications-dir []
   (join-path (home) "Applications"))
 
+(defn input-methods-dir []
+  (join-path (home) "Library" "Input Methods"))
+
 (defn cache-dir []
   (join-path (share-dir) "cache"))
 
@@ -209,6 +212,13 @@
           (= "/" (string/slice value 0 1)))
     value
     (join-path (project-root) value)))
+
+(defn expand-home-path [value]
+  (if (and value
+           (> (length value) 2)
+           (= "~/" (string/slice value 0 2)))
+    (join-path (home) (string/slice value 2))
+    value))
 
 (defn package-by-name [name]
   (let [pkg (get reg/packages name)]
@@ -413,8 +423,9 @@
       (join-path (package-install-dir pkg) path))))
 
 (defn app-target [app]
-  (or (get app :target)
-      (join-path (applications-dir) (get app :name))))
+  (expand-home-path
+    (or (get app :target)
+        (join-path (applications-dir) (get app :name)))))
 
 (defn app-source-path [pkg app]
   (join-path (package-install-dir pkg) (get app :path)))
@@ -670,12 +681,18 @@
         strip-components (or (get source :strip-components) 0)]
     (run ["/usr/bin/curl" "-L" archive-url "-o" archive-path])
     (ensure-sha256 archive-path (get source :sha256))
-    (run ["/bin/mkdir" "-p" src-dir])
     (case (get source :archive)
-      :tar.gz (run ["/usr/bin/tar" "-xzf" archive-path "-C" src-dir "--strip-components" (string strip-components)])
-      :tar.xz (run ["/usr/bin/tar" "-xJf" archive-path "-C" src-dir "--strip-components" (string strip-components)])
-      :zip (run ["/usr/bin/unzip" "-q" archive-path "-d" src-dir])
+      :tar.gz (do
+                (run ["/bin/mkdir" "-p" src-dir])
+                (run ["/usr/bin/tar" "-xzf" archive-path "-C" src-dir "--strip-components" (string strip-components)]))
+      :tar.xz (do
+                (run ["/bin/mkdir" "-p" src-dir])
+                (run ["/usr/bin/tar" "-xJf" archive-path "-C" src-dir "--strip-components" (string strip-components)]))
+      :zip (do
+              (run ["/bin/mkdir" "-p" src-dir])
+              (run ["/usr/bin/unzip" "-q" archive-path "-d" src-dir]))
       :dmg (copy-file archive-path (join-path src-dir archive-name))
+      :pkg (run ["/usr/sbin/pkgutil" "--expand-full" archive-path src-dir])
       (fail (string "unsupported archive type: " (get source :archive))))))
 
 (defn fetch-git-source [pkg]
@@ -778,6 +795,7 @@
         (install-package-apps pkg)
         (install-package-assets pkg)
         (link-package-exposed pkg)
+        (run-package-phase pkg :post-expose)
         (write-manifest pkg)
         (print "installed " name " -> " target)))))
 

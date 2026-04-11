@@ -349,6 +349,24 @@
               "chmod 755 \"$PREFIX/Applications/FreeCAD.app/Contents/MacOS/FreeCAD\""]
       :apps [@{:name "FreeCAD.app"
                :path "Applications/FreeCAD.app"}]
-      :notes "Installs the official FreeCAD 1.1.0 Apple Silicon macOS app into ~/Applications."}})
+      :notes "Installs the official FreeCAD 1.1.0 Apple Silicon macOS app into ~/Applications."}
+
+    "rime"
+    @{:name "rime"
+      :kind :app
+      :version "1.1.2"
+      :homepage "https://rime.im/"
+      :license "GPL-3.0-or-later"
+      :source @{:type :url
+                :url "https://github.com/rime/squirrel/releases/download/1.1.2/Squirrel-1.1.2.pkg"
+                :archive :pkg
+                :sha256 "614746013212937623d5bbab9901e9c43d1ec937aa32307d6b6092a05e308287"}
+      :build ["mkdir -p \"$PREFIX/Applications\""
+              "cp -R \"$SRC_DIR/Payload/Squirrel.app\" \"$PREFIX/Applications/Squirrel.app\""
+              "chmod 755 \"$PREFIX/Applications/Squirrel.app/Contents/MacOS/Squirrel\""]
+      :apps [@{:name "Squirrel.app"
+               :path "Applications/Squirrel.app"
+               :target "~/Library/Input Methods/Squirrel.app"}]
+      :notes "Installs the Rime Squirrel input method into ~/Library/Input Methods. Log out and back in if it does not appear in the Input Sources list immediately."}})
 
 packages
