@@ -622,6 +622,46 @@ write_pkg_cli() {
     (let [pkg (get reg/packages name)]
       (print "  " name "  " (get pkg :version)))))
 
+(defn contains-substring? [text query]
+  (let [text-len (length text)
+        query-len (length query)]
+    (if (= query-len 0)
+      true
+      (if (> query-len text-len)
+        false
+        (do
+          (var matched false)
+          (for i 0 (+ (- text-len query-len) 1) 1
+            (if (= query (string/slice text i (+ i query-len)))
+              (do
+                (set matched true)
+                (break))))
+          matched)))))
+
+(defn search-match? [pkg query]
+  (let [name (or (get pkg :name) "")
+        notes (or (get pkg :notes) "")
+        lower-query (string/ascii-lower query)
+        haystacks [(string/ascii-lower name) (string/ascii-lower notes)]]
+    (var matched false)
+    (each text haystacks
+      (if (contains-substring? text lower-query)
+        (set matched true)))
+    matched))
+
+(defn command-search [query]
+  (let [matches @[]]
+    (eachk name reg/packages
+      (let [pkg (get reg/packages name)]
+        (if (search-match? pkg query)
+          (array/push matches pkg))))
+    (if (= 0 (length matches))
+      (print "no packages matched: " query)
+      (do
+        (print "matching packages:")
+        (each pkg matches
+          (print "  " (get pkg :name) "  " (get pkg :version)))))))
+
 (defn command-installed []
   (let [root (installed-dir)]
     (if (os/stat root)
@@ -677,6 +717,7 @@ write_pkg_cli() {
   (print "")
   (print "commands:")
   (print "  list                 show registry packages")
+  (print "  search <term>        search registry packages")
   (print "  installed            show installed packages")
   (print "  show <pkg>           show package metadata")
   (print "  install <pkg>        build or link a package")
@@ -689,27 +730,31 @@ write_pkg_cli() {
         command (get args 0)]
     (if (= command "list")
       (command-list)
-      (if (= command "installed")
-        (command-installed)
-        (if (= command "show")
-          (if (get args 1)
-            (command-show (get args 1))
-            (fail "show requires a package name"))
-          (if (= command "install")
+      (if (= command "search")
+        (if (get args 1)
+          (command-search (get args 1))
+          (fail "search requires a query"))
+        (if (= command "installed")
+          (command-installed)
+          (if (= command "show")
             (if (get args 1)
-              (install-package (get args 1))
-              (fail "install requires a package name"))
-            (if (= command "remove")
+              (command-show (get args 1))
+              (fail "show requires a package name"))
+            (if (= command "install")
               (if (get args 1)
-                (remove-package (get args 1))
-                (fail "remove requires a package name"))
-              (if (= command "upgrade")
+                (install-package (get args 1))
+                (fail "install requires a package name"))
+              (if (= command "remove")
                 (if (get args 1)
-                  (upgrade-package (get args 1))
-                  (fail "upgrade requires a package name"))
-                (if (= command "doctor")
-                  (command-doctor)
-                  (usage))))))))))
+                  (remove-package (get args 1))
+                  (fail "remove requires a package name"))
+                (if (= command "upgrade")
+                  (if (get args 1)
+                    (upgrade-package (get args 1))
+                    (fail "upgrade requires a package name"))
+                  (if (= command "doctor")
+                    (command-doctor)
+                    (usage)))))))))))
 EOF_PKG_CLI
 }
 
