@@ -11,7 +11,8 @@
       (fail "HOME is not set")))
 
 (defn project-root []
-  (or (os/getenv "LPKG_ROOT")
+  (or (os/getenv "PKG_ROOT")
+      (os/getenv "LPKG_ROOT")
       (os/cwd)))
 
 (defn join-path [& parts]
@@ -41,10 +42,10 @@
   (join-path (package-root) "opt"))
 
 (defn share-dir []
-  (join-path (package-root) "share" "lpkg"))
+  (join-path (package-root) "share" "pkg"))
 
 (defn config-dir []
-  (join-path (home) ".config" "lpkg"))
+  (join-path (home) ".config" "pkg"))
 
 (defn cache-dir []
   (join-path (share-dir) "cache"))
@@ -240,7 +241,7 @@
   (print "  " (bin-dir)))
 
 (defn usage []
-  (print "lpkg <command> [args]")
+  (print "pkg <command> [args]")
   (print "")
   (print "commands:")
   (print "  list                 show registry packages")

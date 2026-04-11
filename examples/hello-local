@@ -1,2 +1,2 @@
 #!/bin/sh
-printf '%s\n' 'hello from lpkg'
+printf '%s\n' 'hello from pkg'

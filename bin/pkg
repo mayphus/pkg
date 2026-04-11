@@ -2,10 +2,10 @@
 ROOT="/Users/mayphus/lpkg"
 JANET_BIN="${HOME}/.local/bin/janet"
 JANET_LIB="${HOME}/.local/lib/janet"
-export LPKG_ROOT="$ROOT"
+export PKG_ROOT="$ROOT"
 export JANET_PATH="$JANET_LIB"
 cd "$ROOT" || exit 1
 if [ -x "$JANET_BIN" ]; then
-  exec "$JANET_BIN" "$ROOT/lpkg.janet" "$@"
+  exec "$JANET_BIN" "$ROOT/pkg.janet" "$@"
 fi
-exec janet "$ROOT/lpkg.janet" "$@"
+exec janet "$ROOT/pkg.janet" "$@"
