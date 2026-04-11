@@ -338,7 +338,6 @@
            (path/join-path (path/man1-dir) (get entry :name)))))
 
 (defn dry-run-install-package [name]
-  (path/ensure-layout)
   (let [pkg (pkgdef/package-by-name name)
         source (get pkg :source)
         target (state/package-install-dir pkg)]
@@ -375,7 +374,6 @@
     (print-package-assets-plan pkg)))
 
 (defn dry-run-remove-installed-version [name version]
-  (path/ensure-layout)
   (let [target (state/package-install-dir (state/manifest-pkg name version))
         manifest-data (state/read-manifest name version)]
     (if (not manifest-data)

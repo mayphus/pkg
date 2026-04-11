@@ -106,8 +106,17 @@
     (array/push parts (string "export " key "=\"" (get env key) "\";")))
   (string/join parts " "))
 
+(defn debug-enabled? []
+  (let [value (os/getenv "PKG_DEBUG")]
+    (and value
+         (not (= value ""))
+         (not (= value "0"))
+         (not (= value "false"))
+         (not (= value "no")))))
+
 (defn run [args &opt env]
-  (print "$ " (string/join args " "))
+  (if (debug-enabled?)
+    (print "$ " (string/join args " ")))
   (if env
     (os/execute args :epx env)
     (os/execute args :px)))
@@ -117,7 +126,8 @@
     (if env
       (string (shell-assignments env) " " command)
       command))
-  (print "$ " shell-command)
+  (if (debug-enabled?)
+    (print "$ " shell-command))
   (os/execute ["/bin/sh" "-lc" shell-command] :px))
 
 (defn capture-command [args]
