@@ -355,9 +355,20 @@ write_pkg_cli() {
     (or (= :url source-type)
         (= :github-release source-type))))
 
+(defn source-integrity-policy [source]
+  (or (get source :integrity)
+      :required))
+
 (defn package-missing-sha256? [pkg]
   (let [source (get pkg :source)]
     (and (source-downloadable? source)
+         (= :required (source-integrity-policy source))
+         (= nil (get source :sha256)))))
+
+(defn package-unverified-download? [pkg]
+  (let [source (get pkg :source)]
+    (and (source-downloadable? source)
+         (not (= :required (source-integrity-policy source)))
          (= nil (get source :sha256)))))
 
 (defn install-self-files [source-root]
@@ -795,22 +806,41 @@ write_pkg_cli() {
   (print "  " (bin-dir)))
 
 (defn command-audit []
-  (let [missing @[]]
+  (let [missing @[]
+        unverified @[]]
     (eachk name reg/packages
       (let [pkg (get reg/packages name)]
         (if (package-missing-sha256? pkg)
-          (array/push missing pkg))))
-    (if (= 0 (length missing))
-      (print "audit ok: all downloadable packages have sha256")
+          (array/push missing pkg))
+        (if (package-unverified-download? pkg)
+          (array/push unverified pkg))))
+    (if (and (= 0 (length missing))
+             (= 0 (length unverified)))
+      (print "audit ok: all downloadable packages have integrity policy")
       (do
-        (print "packages missing sha256:")
-        (each pkg missing
-          (print "  "
-                 (string/format "%-18s" (get pkg :name))
-                 "  "
-                 (string (get (get pkg :source) :type))
-                 "  "
-                 (source-url (get pkg :source))))))))
+        (if (> (length missing) 0)
+          (do
+            (print "packages missing sha256:")
+            (each pkg missing
+              (print "  "
+                     (string/format "%-18s" (get pkg :name))
+                     "  "
+                     (string (get (get pkg :source) :type))
+                     "  "
+                     (source-url (get pkg :source))))))
+        (if (> (length unverified) 0)
+          (do
+            (if (> (length missing) 0)
+              (print ""))
+            (print "packages with non-required integrity policy:")
+            (each pkg unverified
+              (let [source (get pkg :source)]
+                (print "  "
+                       (string/format "%-18s" (get pkg :name))
+                       "  "
+                       (string (source-integrity-policy source))
+                       "  "
+                       (source-url source))))))))))
 
 (defn usage []
   (print "pkg <command> [args]")
@@ -1104,7 +1134,8 @@ write_pkg_registry() {
       :source @{:type :url
                 :url "https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg"
                 :file-name "googlechrome.dmg"
-                :archive :dmg}
+                :archive :dmg
+                :integrity :moving}
       :build ["mkdir -p \"$PREFIX/Applications\""
               "MOUNT_DIR=\"$BUILD_DIR/mnt\"; rm -rf \"$MOUNT_DIR\"; mkdir -p \"$MOUNT_DIR\"; cleanup(){ /usr/bin/hdiutil detach \"$MOUNT_DIR\" -quiet >/dev/null 2>&1 || true; }; trap cleanup EXIT INT TERM; /usr/bin/hdiutil attach \"$SRC_DIR/googlechrome.dmg\" -mountpoint \"$MOUNT_DIR\" -nobrowse -quiet; cp -R \"$MOUNT_DIR/Google Chrome.app\" \"$PREFIX/Applications/Google Chrome.app\""
               "chmod 755 \"$PREFIX/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\""]

@@ -232,7 +232,8 @@
       :source @{:type :url
                 :url "https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg"
                 :file-name "googlechrome.dmg"
-                :archive :dmg}
+                :archive :dmg
+                :integrity :moving}
       :build ["mkdir -p \"$PREFIX/Applications\""
               "MOUNT_DIR=\"$BUILD_DIR/mnt\"; rm -rf \"$MOUNT_DIR\"; mkdir -p \"$MOUNT_DIR\"; cleanup(){ /usr/bin/hdiutil detach \"$MOUNT_DIR\" -quiet >/dev/null 2>&1 || true; }; trap cleanup EXIT INT TERM; /usr/bin/hdiutil attach \"$SRC_DIR/googlechrome.dmg\" -mountpoint \"$MOUNT_DIR\" -nobrowse -quiet; cp -R \"$MOUNT_DIR/Google Chrome.app\" \"$PREFIX/Applications/Google Chrome.app\""
               "chmod 755 \"$PREFIX/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\""]
