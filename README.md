@@ -27,15 +27,30 @@ This is intentionally simple. There is no dependency solver, no bottle system, n
 - `lpkg.janet`: main CLI
 - `packages.janet`: package registry
 - `bin/lpkg`: wrapper so the tool always runs from the project root
+- `examples/hello-local`: minimal local package used for smoke testing
 
 ## Commands
 
 ```sh
 ./bin/lpkg list
+./bin/lpkg show hello-local
 ./bin/lpkg show janet
 ./bin/lpkg doctor
+./bin/lpkg install hello-local
+./bin/lpkg remove hello-local
 ./bin/lpkg install janet
 ./bin/lpkg remove janet
+```
+
+## First smoke test
+
+Use the local link package first. It exercises the registry lookup, symlink creation, and removal flow without depending on network or compilation.
+
+```sh
+./bin/lpkg doctor
+./bin/lpkg install hello-local
+hello-local
+./bin/lpkg remove hello-local
 ```
 
 ## Bootstrapping Janet
@@ -59,15 +74,11 @@ Then ensure `~/.local/bin` is on your shell `PATH`.
 Package definitions live in `packages.janet` as Janet data:
 
 ```janet
-@{:name "janet"
-  :version "1.41.2"
-  :source @{:type :url
-            :url "https://github.com/janet-lang/janet/archive/refs/tags/v1.41.2.tar.gz"
-            :archive :tar.gz
-            :strip-components 1}
-  :build ["make"
-          "make PREFIX=\"$PREFIX\" install"]
-  :bins ["janet" "jpm"]}
+@{:name "hello-local"
+  :version "0.1.0"
+  :source @{:type :link
+            :path "examples"}
+  :bins ["hello-local"]}
 ```
 
 ## Practical limits
