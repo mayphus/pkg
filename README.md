@@ -48,21 +48,33 @@ This is intentionally simple. There is no dependency solver, no bottle system, n
 
 ## Install
 
-Use the installer to bootstrap everything into `~/.local`:
+From a checkout:
 
 ```sh
 sh ./install.sh
 ```
 
-`install.sh` is standalone. It does not need `packages.janet`, `pkg.janet`, or `bin/pkg` to already be present on disk at install time.
+From the public repo, Homebrew-style:
+
+```sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/mayphus/pkg/main/install.sh)"
+```
+
+`install.sh` is now a thin bootstrap installer. It bootstraps Janet locally, then fetches `bin/pkg`, `pkg.janet`, and `packages.janet` from this repo. When run from a local checkout, it copies those files from disk instead of downloading them.
 
 The installer does three things:
 
 - checks for macOS Command Line Tools and prompts to install them first if needed
 - bootstraps Janet and `jpm` into `~/.local/opt/janet/<version>` and relinks `~/.local/bin/janet`
-- writes the `pkg` wrapper and Janet sources into `~/.local/bin/pkg` and `~/.local/share/pkg/lib`
+- installs or refreshes the `pkg` wrapper and Janet sources into `~/.local/bin/pkg` and `~/.local/share/pkg/lib`
 
 After that, `pkg` should work directly from your shell as long as `~/.local/bin` is on `PATH`.
+
+Running `install.sh` again is allowed. Treat it as a bootstrap-style update:
+
+- it does not reject an existing install
+- it refreshes `~/.local/bin/pkg`, `pkg.janet`, and `packages.janet`
+- it keeps using the existing Janet install if the requested Janet version is already present
 
 If you want `pkg` to install artifacts from this repo's GitHub Releases, configure the repo slug once:
 
@@ -86,13 +98,29 @@ hello-local
 
 ## Upgrading pkg
 
-Once installed, refresh the installed wrapper and Janet sources from your recorded checkout with:
+Once installed, there are now two update paths.
+
+From a checkout or the public one-liner, rerun `install.sh`:
+
+```sh
+sh ./install.sh
+```
+
+or
+
+```sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/mayphus/pkg/main/install.sh)"
+```
+
+That refreshes the installed wrapper and registry files in place.
+
+If you have a local checkout and want to update directly from it, you can also use:
 
 ```sh
 pkg upgrade pkg
 ```
 
-This currently upgrades `pkg` from the checkout path recorded by `install.sh` when the installer is run from a git checkout. If `install.sh` is run standalone without a checkout, `pkg upgrade pkg` will not have a source tree to copy from yet.
+`pkg upgrade pkg` upgrades `pkg` from the checkout path recorded by `install.sh` when the installer is run from a git checkout. The remote one-liner install path does not record a source checkout, so in that case rerunning `install.sh` is the correct update path.
 
 ## GitHub Artifacts
 
@@ -117,7 +145,7 @@ Once a release asset exists and `PKG_RELEASE_REPO` is configured, Emacs can be i
 pkg install emacs
 ```
 
-This repo currently treats Emacs as a `master` channel package built on `macos-26`, not as a pinned stable release.
+This repo currently uses the upstream `emacsformacosx.com` app distribution, not a repo-built `master` artifact.
 
 ## Registry shape
 
