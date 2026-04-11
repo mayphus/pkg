@@ -289,6 +289,24 @@
                :path "Applications/Google Chrome.app"}]
       :notes "Installs Google Chrome from the official stable macOS disk image into the package prefix."}
 
+    "google-chrome-canary"
+    @{:name "google-chrome-canary"
+      :kind :app
+      :version "149.0.7785.0"
+      :homepage "https://www.google.com/chrome/canary/"
+      :license "Proprietary"
+      :source @{:type :url
+                :url "https://dl.google.com/chrome/mac/universal/canary/googlechromecanary.dmg"
+                :file-name "googlechromecanary.dmg"
+                :archive :dmg
+                :integrity :moving}
+      :build ["mkdir -p \"$PREFIX/Applications\""
+              "MOUNT_DIR=\"$BUILD_DIR/mnt\"; rm -rf \"$MOUNT_DIR\"; mkdir -p \"$MOUNT_DIR\"; cleanup(){ /usr/bin/hdiutil detach \"$MOUNT_DIR\" -quiet >/dev/null 2>&1 || true; }; trap cleanup EXIT INT TERM; /usr/bin/hdiutil attach \"$SRC_DIR/googlechromecanary.dmg\" -mountpoint \"$MOUNT_DIR\" -nobrowse -quiet; cp -R \"$MOUNT_DIR/Google Chrome Canary.app\" \"$PREFIX/Applications/Google Chrome Canary.app\""
+              "chmod 755 \"$PREFIX/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary\""]
+      :apps [@{:name "Google Chrome Canary.app"
+               :path "Applications/Google Chrome Canary.app"}]
+      :notes "Installs Google Chrome Canary from the official moving macOS disk image into the package prefix."}
+
     "kicad"
     @{:name "kicad"
       :kind :app
