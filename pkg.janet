@@ -80,6 +80,9 @@
 (defn release-repo-file []
   (join-path (config-dir) "release-repo"))
 
+(defn self-meta-file []
+  (join-path (config-dir) "self-meta.jdn"))
+
 (defn path-prefix? [prefix path]
   (and prefix
        path
@@ -105,6 +108,19 @@
       command))
   (print "$ " shell-command)
   (os/execute ["/bin/sh" "-lc" shell-command] :px))
+
+(defn capture-command [args]
+  (let [tmp-output (join-path (build-root) ".capture-command")
+        command (string
+                  "("
+                  (string/join args " ")
+                  ") > \""
+                  tmp-output
+                  "\" 2>/dev/null")
+        status (os/shell command)]
+    (if (not= 0 status)
+      nil
+      (string/trim (slurp tmp-output)))))
 
 (defn ensure-layout []
   (run ["/bin/mkdir" "-p"
@@ -209,6 +225,23 @@
         (string/trim (slurp (bootstrap-ref-file)))
         "main")))
 
+(defn read-self-meta []
+  (if (os/stat (self-meta-file))
+    (parse (slurp (self-meta-file)))
+    nil))
+
+(defn write-self-meta [meta]
+  (spit (self-meta-file)
+        (string (string/format "%q" meta) "\n")))
+
+(defn git-head-revision [root]
+  (capture-command ["git" "-C" root "rev-parse" "HEAD"]))
+
+(defn remote-bootstrap-revision []
+  (let [repo (configured-bootstrap-repo)
+        ref (configured-bootstrap-ref)]
+    (capture-command ["git" "ls-remote" (string "https://github.com/" repo ".git") ref])))
+
 (defn current-link-target [path]
   (if (os/stat path)
     (os/readlink path)
@@ -295,6 +328,9 @@
     (copy-file cli-src cli-dest)
     (copy-file registry-src registry-dest)
     (spit (self-source-file) (string resolved "\n"))
+    (write-self-meta @{:source :local
+                       :root resolved
+                       :revision (git-head-revision resolved)})
     (print "installed pkg into " wrapper-dest)))
 
 (defn install-self-files-from-remote []
@@ -317,6 +353,10 @@
     (run ["/bin/chmod" "755" wrapper-dest])
     (copy-file cli-src cli-dest)
     (copy-file registry-src registry-dest)
+    (write-self-meta @{:source :remote
+                       :repo repo
+                       :ref ref
+                       :revision (remote-bootstrap-revision)})
     (print "installed pkg into " wrapper-dest)))
 
 (defn expected-bin-target [pkg bin-name]
@@ -959,6 +999,22 @@
             (run ["/bin/mkdir" "-p" pkg-cache-dir])))
         (print "cleaned cache: " pkg-cache-dir)))))
 
+(defn command-version []
+  (let [meta (read-self-meta)]
+    (print "name:    pkg")
+    (if meta
+      (do
+        (print "source:  " (get meta :source))
+        (if (get meta :repo)
+          (print "repo:    " (get meta :repo)))
+        (if (get meta :ref)
+          (print "ref:     " (get meta :ref)))
+        (if (get meta :root)
+          (print "root:    " (get meta :root)))
+        (if (get meta :revision)
+          (print "revision:" " " (get meta :revision))))
+      (print "source:  unknown"))))
+
 (defn usage []
   (print "pkg <command> [args]")
   (print "")
@@ -975,50 +1031,43 @@
   (print "  upgrade --all        upgrade all installed packages")
   (print "  cleanup [--cache]    remove build state, optionally cache")
   (print "  audit                report packages missing sha256")
+  (print "  version              show installed pkg source metadata")
+  (print "  self-upgrade         upgrade pkg itself")
   (print "  doctor               create layout and print paths"))
 
 (defn main [& argv]
   (let [args (tuple/slice argv 1)
         command (get args 0)]
-    (if (= command "list")
-      (command-list)
-      (if (= command "search")
-        (if (get args 1)
-          (command-search (get args 1))
-          (fail "search requires a query"))
-        (if (= command "installed")
-          (command-installed)
-          (if (= command "show")
-            (if (get args 1)
-              (command-show (get args 1))
-              (fail "show requires a package name"))
-            (if (= command "info")
-              (if (get args 1)
-                (command-info (get args 1))
-                (fail "info requires a package name"))
-              (if (= command "install")
-                (if (get args 1)
+    (case command
+      "list" (command-list)
+      "search" (if (get args 1)
+                 (command-search (get args 1))
+                 (fail "search requires a query"))
+      "installed" (command-installed)
+      "show" (if (get args 1)
+               (command-show (get args 1))
+               (fail "show requires a package name"))
+      "info" (if (get args 1)
+               (command-info (get args 1))
+               (fail "info requires a package name"))
+      "install" (if (get args 1)
                   (install-package (get args 1))
                   (fail "install requires a package name"))
-                (if (= command "reinstall")
-                  (if (get args 1)
+      "reinstall" (if (get args 1)
                     (reinstall-package (get args 1))
                     (fail "reinstall requires a package name"))
-                  (if (= command "remove")
-                    (if (get args 1)
-                      (remove-package (get args 1))
-                      (fail "remove requires a package name"))
-                    (if (= command "upgrade")
-                      (if (get args 1)
-                        (if (or (= (get args 1) "--all")
-                                (= (get args 1) "all"))
-                          (command-upgrade-all)
-                          (upgrade-package (get args 1)))
-                        (fail "upgrade requires a package name"))
-                      (if (= command "cleanup")
-                        (apply command-cleanup (tuple/slice args 1))
-                      (if (= command "doctor")
-                        (command-doctor)
-                        (if (= command "audit")
-                          (command-audit)
-                          (usage)))))))))))))))
+      "remove" (if (get args 1)
+                 (remove-package (get args 1))
+                 (fail "remove requires a package name"))
+      "upgrade" (if (get args 1)
+                  (if (or (= (get args 1) "--all")
+                          (= (get args 1) "all"))
+                    (command-upgrade-all)
+                    (upgrade-package (get args 1)))
+                  (fail "upgrade requires a package name"))
+      "self-upgrade" (upgrade-package "pkg")
+      "cleanup" (apply command-cleanup (tuple/slice args 1))
+      "doctor" (command-doctor)
+      "audit" (command-audit)
+      "version" (command-version)
+      (usage))))

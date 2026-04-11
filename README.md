@@ -114,13 +114,13 @@ or
 
 That refreshes the installed wrapper and registry files in place.
 
-For installed `pkg`, the normal self-update command is:
+For installed `pkg`, the preferred self-update command is:
 
 ```sh
-pkg upgrade pkg
+pkg self-upgrade
 ```
 
-`pkg upgrade pkg` now updates from the configured bootstrap repo and ref, which default to:
+`pkg upgrade pkg` still works as an alias. Both commands update from the configured bootstrap repo and ref, which default to:
 
 - repo: `mayphus/pkg`
 - ref: `main`
@@ -129,6 +129,12 @@ You can override those with:
 
 - `PKG_BOOTSTRAP_REPO`
 - `PKG_BOOTSTRAP_REF`
+
+To inspect the installed bootstrap source and revision:
+
+```sh
+pkg version
+```
 
 or by editing the values recorded in `~/.config/pkg/bootstrap-repo` and `~/.config/pkg/bootstrap-ref`.
 

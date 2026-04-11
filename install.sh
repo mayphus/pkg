@@ -12,6 +12,7 @@ LIB_DIR="${PREFIX}/lib"
 PKG_LIB_DIR="${PREFIX}/share/pkg/lib"
 CONFIG_DIR="${HOME}/.config/pkg"
 SELF_SOURCE_FILE="${CONFIG_DIR}/self-source"
+SELF_META_FILE="${CONFIG_DIR}/self-meta.jdn"
 BOOTSTRAP_REPO_FILE="${CONFIG_DIR}/bootstrap-repo"
 BOOTSTRAP_REF_FILE="${CONFIG_DIR}/bootstrap-ref"
 RELEASE_REPO_FILE="${CONFIG_DIR}/release-repo"
@@ -64,6 +65,10 @@ download_file() {
   url="$1"
   dest="$2"
   curl -fsSL "$url" -o "$dest"
+}
+
+jdn_quote() {
+  printf '"%s"' "$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 }
 
 fetch_pkg_file() {
@@ -133,6 +138,16 @@ install_pkg() {
 
   if [ -n "${SCRIPT_DIR}" ] && [ -d "${SCRIPT_DIR}/.git" ]; then
     printf '%s\n' "${SCRIPT_DIR}" > "${SELF_SOURCE_FILE}"
+    REVISION="$(git -C "${SCRIPT_DIR}" rev-parse HEAD 2>/dev/null || true)"
+    printf '{:source :local :root %s :revision %s}\n' \
+      "$(jdn_quote "${SCRIPT_DIR}")" \
+      "$(jdn_quote "${REVISION}")" > "${SELF_META_FILE}"
+  else
+    REVISION="$(git ls-remote "https://github.com/${BOOTSTRAP_REPO}.git" "${BOOTSTRAP_REF}" 2>/dev/null | awk 'NR==1 {print $1}')"
+    printf '{:source :remote :repo %s :ref %s :revision %s}\n' \
+      "$(jdn_quote "${BOOTSTRAP_REPO}")" \
+      "$(jdn_quote "${BOOTSTRAP_REF}")" \
+      "$(jdn_quote "${REVISION}")" > "${SELF_META_FILE}"
   fi
 
   if [ -n "${PKG_RELEASE_REPO:-}" ]; then
