@@ -38,8 +38,10 @@
                 :url "https://github.com/cli/cli/releases/download/v2.89.0/gh_2.89.0_macOS_arm64.zip"
                 :archive :zip
                 :sha256 "2423d02ec0a2094898c378703a1b28a5846c08700f87461363857cb8cb3fda94"}
-      :install ["cp gh_*_macOS_arm64/bin/gh \"$PREFIX/bin/gh\""
-              "chmod 755 \"$PREFIX/bin/gh\""]
+      :install-mode :copy-paths
+      :copy-paths [@{:from "gh_2.89.0_macOS_arm64/bin/gh"
+                     :to "bin/gh"
+                     :mode "755"}]
       :bins ["gh"]
       :notes "Installs the prebuilt GitHub CLI macOS arm64 release archive."}
 
@@ -53,8 +55,10 @@
                 :url "https://github.com/openai/codex/releases/download/rust-v0.120.0/codex-aarch64-apple-darwin.tar.gz"
                 :archive :tar.gz
                 :sha256 "b1083c438b752fa292057fb8c735f58d1323144a3deb9e5742c4e845152c95f0"}
-      :install ["cp codex-aarch64-apple-darwin \"$PREFIX/bin/codex\""
-              "chmod 755 \"$PREFIX/bin/codex\""]
+      :install-mode :copy-paths
+      :copy-paths [@{:from "codex-aarch64-apple-darwin"
+                     :to "bin/codex"
+                     :mode "755"}]
       :bins ["codex"]
       :notes "Installs the native OpenAI Codex CLI Apple Silicon macOS binary release."}
 
@@ -89,8 +93,10 @@
                 :archive :tar.gz
                 :strip-components 1
                 :sha256 "378e973289176ca0c6054054ee7f631a065874a352bf43f0fa60ef079b6ba715"}
-      :install ["cp rg \"$PREFIX/bin/rg\""
-              "chmod 755 \"$PREFIX/bin/rg\""]
+      :install-mode :copy-paths
+      :copy-paths [@{:from "rg"
+                     :to "bin/rg"
+                     :mode "755"}]
       :bins ["rg"]
       :notes "Installs the prebuilt ripgrep macOS arm64 release archive."}
 
@@ -140,7 +146,7 @@
                 :archive :tar.gz
                 :strip-components 1
                 :sha256 "55a40abeb0e174fdc70f769b34b50b70c3967e0b12a643e6a3e23f9a582aac16"}
-      :install ["tar -cf - . | tar -xf - -C \"$PREFIX\""]
+      :install-mode :copy-tree
       :bins ["java" "javac" "jar" "jarsigner" "javadoc" "javap" "jlink" "jpackage" "jshell" "keytool"]
       :links [@{:name "java" :path "Contents/Home/bin/java"}
               @{:name "javac" :path "Contents/Home/bin/javac"}
@@ -208,8 +214,10 @@
                 :url "https://github.com/babashka/babashka/releases/download/v1.12.217/babashka-1.12.217-macos-aarch64.tar.gz"
                 :archive :tar.gz
                 :sha256 "c87637b58fe214a904374593941227a938c91a98962fe12bcd9ec8b666f7b8ca"}
-      :install ["cp bb \"$PREFIX/bin/bb\""
-              "chmod 755 \"$PREFIX/bin/bb\""]
+      :install-mode :copy-paths
+      :copy-paths [@{:from "bb"
+                     :to "bin/bb"
+                     :mode "755"}]
       :bins ["bb"]
       :notes "Installs the official Babashka Apple Silicon macOS binary release."}
 
@@ -224,7 +232,7 @@
                 :archive :tar.gz
                 :strip-components 1
                 :sha256 "e53b5d061f855e74548b7d8b5bea6bec689d54d05ed87e485e534816c9b096bc"}
-      :install ["tar -cf - . | tar -xf - -C \"$PREFIX\""]
+      :install-mode :copy-tree
       :bins ["racket" "raco"]
       :notes "Installs the relocatable Minimal Racket macOS arm64 distribution."}
 
@@ -239,7 +247,7 @@
                 :archive :tar.gz
                 :strip-components 1
                 :sha256 "a603229a773a65a049492bb3a6e037c8e68e45624d937454cd90971d9f9fc96a"}
-      :install ["tar -cf - . | tar -xf - -C \"$PREFIX\""]
+      :install-mode :copy-tree
       :bins ["python" "python3" "python3.14"
              "pip" "pip3" "pip3.14"
              "pydoc3" "pydoc3.14"
@@ -256,8 +264,10 @@
                 :url "https://github.com/astral-sh/uv/releases/download/0.11.6/uv-aarch64-apple-darwin.tar.gz"
                 :archive :tar.gz
                 :sha256 "4b69a4e366ec38cd5f305707de95e12951181c448679a00dce2a78868dfc9f5b"}
-      :install ["cp uv-aarch64-apple-darwin/uv \"$PREFIX/bin/uv\""
-              "chmod 755 \"$PREFIX/bin/uv\""]
+      :install-mode :copy-paths
+      :copy-paths [@{:from "uv-aarch64-apple-darwin/uv"
+                     :to "bin/uv"
+                     :mode "755"}]
       :bins ["uv"]
       :notes "Installs the official uv Apple Silicon macOS binary."}
 

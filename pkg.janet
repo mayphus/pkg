@@ -575,6 +575,33 @@
         (or (get pkg :build) @[])
         @[])))
 
+(defn package-install-mode [pkg]
+  (get pkg :install-mode))
+
+(defn package-copy-paths [pkg]
+  (or (get pkg :copy-paths)
+      @[]))
+
+(defn install-copy-path [pkg entry]
+  (let [source-path (join-path (package-source-dir pkg) (get entry :from))
+        dest-path (join-path (package-install-dir pkg) (get entry :to))]
+    (if (not (os/stat source-path))
+      (fail (string "missing install source path: " source-path)))
+    (copy-file source-path dest-path)
+    (if (get entry :mode)
+      (run ["/bin/chmod" (string (get entry :mode)) dest-path]))))
+
+(defn install-copy-tree [pkg]
+  (run-shell "cd \"$SRC_DIR\" && tar -cf - . | tar -xf - -C \"$PREFIX\"" (package-env pkg)))
+
+(defn run-install-mode [pkg]
+  (case (package-install-mode pkg)
+    :copy-paths (each entry (package-copy-paths pkg)
+                   (install-copy-path pkg entry))
+    :copy-tree (install-copy-tree pkg)
+    nil
+    (fail (string "unsupported install mode: " (package-install-mode pkg)))))
+
 (defn run-package-phase [pkg phase]
   (let [env (package-env pkg)]
     (each command (package-phase-commands pkg phase)
@@ -582,8 +609,11 @@
 
 (defn run-package-phases [pkg]
   (run ["/bin/mkdir" "-p" (join-path (package-install-dir pkg) "bin")])
-  (each phase [:build :install :post-install]
-    (run-package-phase pkg phase)))
+  (run-package-phase pkg :build)
+  (if (package-install-mode pkg)
+    (run-install-mode pkg)
+    (run-package-phase pkg :install))
+  (run-package-phase pkg :post-install))
 
 (defn install-package [name]
   (ensure-layout)
