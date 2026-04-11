@@ -27,16 +27,15 @@ This is intentionally simple. There is no dependency solver, no bottle system, n
 - `lpkg.janet`: main CLI
 - `packages.janet`: package registry
 - `bin/lpkg`: wrapper so the tool always runs from the project root
-- `examples/hello-local`: no-build example package
 
 ## Commands
 
 ```sh
 ./bin/lpkg list
-./bin/lpkg show hello-local
+./bin/lpkg show janet
 ./bin/lpkg doctor
-./bin/lpkg install hello-local
-./bin/lpkg remove hello-local
+./bin/lpkg install janet
+./bin/lpkg remove janet
 ```
 
 ## Bootstrapping Janet
@@ -60,15 +59,15 @@ Then ensure `~/.local/bin` is on your shell `PATH`.
 Package definitions live in `packages.janet` as Janet data:
 
 ```janet
-@{:name "ripgrep"
-  :version "14.1.1"
+@{:name "janet"
+  :version "1.41.2"
   :source @{:type :url
-            :url "https://github.com/BurntSushi/ripgrep/archive/refs/tags/14.1.1.tar.gz"
+            :url "https://github.com/janet-lang/janet/archive/refs/tags/v1.41.2.tar.gz"
             :archive :tar.gz
             :strip-components 1}
-  :build ["cargo build --release"
-          "install -m755 target/release/rg \"$PREFIX/bin/rg\""]
-  :bins ["rg"]}
+  :build ["make"
+          "make PREFIX=\"$PREFIX\" install"]
+  :bins ["janet" "jpm"]}
 ```
 
 ## Practical limits
