@@ -9,6 +9,8 @@ It installs into your user prefix instead of `/opt/homebrew`:
 - `~/.local/bin`
 - `~/.local/opt/<name>/<version>`
 - `~/.local/share/pkg`
+- `~/.local/share/pkg/completions`
+- `~/.local/share/man`
 - `~/.config/pkg`
 
 ## Why this shape
@@ -22,6 +24,7 @@ This layout keeps binaries in one place and package payloads versioned under `op
 - `:github-release` packages for repo-hosted release artifacts
 - `:git` packages for source builds
 - shell-based build recipes with `PREFIX`, `SRC_DIR`, `BUILD_DIR`, `PKG_NAME`, and `PKG_VERSION`
+- package-managed zsh completions and man pages
 
 This is intentionally simple. There is no dependency solver, no bottle system, no patch DSL, and no registry sync story yet.
 
@@ -78,11 +81,18 @@ autoload -Uz compinit
 compinit
 ```
 
+For the manual page, add the managed man directory to `MANPATH` if your shell does not already pick it up:
+
+```sh
+export MANPATH="$HOME/.local/share/man:${MANPATH:-}"
+```
+
 Running `install.sh` again is allowed. Treat it as a bootstrap-style update:
 
 - it does not reject an existing install
 - it refreshes `~/.local/bin/pkg`, `pkg.janet`, and `packages.janet`
 - it refreshes the zsh completion at `~/.local/share/pkg/completions/zsh/_pkg`
+- it refreshes the manual page at `~/.local/share/man/man1/pkg.1`
 - it keeps using the existing Janet install if the requested Janet version is already present
 
 If you want `pkg` to install artifacts from this repo's GitHub Releases, configure the repo slug once:

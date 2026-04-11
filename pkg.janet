@@ -89,6 +89,12 @@
 (defn zsh-completions-dir []
   (join-path (completions-dir) "zsh"))
 
+(defn man-dir []
+  (join-path (package-root) "share" "man"))
+
+(defn man1-dir []
+  (join-path (man-dir) "man1"))
+
 (defn path-prefix? [prefix path]
   (and prefix
        path
@@ -134,6 +140,8 @@
         (opt-dir)
         (cache-dir)
         (lib-dir)
+        (zsh-completions-dir)
+        (man1-dir)
         (installed-dir)
         (build-root)
         (config-dir)]))
@@ -174,6 +182,14 @@
 
 (defn package-apps [pkg]
   (or (get pkg :apps)
+      @[]))
+
+(defn package-zsh-completions [pkg]
+  (or (get pkg :zsh-completions)
+      @[]))
+
+(defn package-man-pages [pkg]
+  (or (get pkg :man-pages)
       @[]))
 
 (defn package-depends [pkg]
@@ -321,10 +337,12 @@
         cli-src (join-path resolved "pkg.janet")
         registry-src (join-path resolved "packages.janet")
         zsh-completion-src (join-path resolved "completions" "zsh" "_pkg")
+        man-src (join-path resolved "man" "man1" "pkg.1")
         wrapper-dest (join-path (bin-dir) "pkg")
         cli-dest (join-path (lib-dir) "pkg.janet")
         registry-dest (join-path (lib-dir) "packages.janet")
-        zsh-completion-dest (join-path (zsh-completions-dir) "_pkg")]
+        zsh-completion-dest (join-path (zsh-completions-dir) "_pkg")
+        man-dest (join-path (man1-dir) "pkg.1")]
     (if (not (os/stat wrapper-src))
       (fail (string "missing pkg wrapper at " wrapper-src)))
     (if (not (os/stat cli-src))
@@ -333,11 +351,14 @@
       (fail (string "missing pkg registry at " registry-src)))
     (if (not (os/stat zsh-completion-src))
       (fail (string "missing pkg zsh completion at " zsh-completion-src)))
+    (if (not (os/stat man-src))
+      (fail (string "missing pkg man page at " man-src)))
     (copy-file wrapper-src wrapper-dest)
     (run ["/bin/chmod" "755" wrapper-dest])
     (copy-file cli-src cli-dest)
     (copy-file registry-src registry-dest)
     (copy-file zsh-completion-src zsh-completion-dest)
+    (copy-file man-src man-dest)
     (spit (self-source-file) (string resolved "\n"))
     (write-self-meta @{:source :local
                        :root resolved
@@ -353,21 +374,25 @@
         cli-src (join-path tmp-dir "pkg.janet")
         registry-src (join-path tmp-dir "packages.janet")
         zsh-completion-src (join-path tmp-dir "completions" "zsh" "_pkg")
+        man-src (join-path tmp-dir "man" "man1" "pkg.1")
         wrapper-dest (join-path (bin-dir) "pkg")
         cli-dest (join-path (lib-dir) "pkg.janet")
         registry-dest (join-path (lib-dir) "packages.janet")
-        zsh-completion-dest (join-path (zsh-completions-dir) "_pkg")]
+        zsh-completion-dest (join-path (zsh-completions-dir) "_pkg")
+        man-dest (join-path (man1-dir) "pkg.1")]
     (run ["/bin/rm" "-rf" tmp-dir])
-    (run ["/bin/mkdir" "-p" (join-path tmp-dir "bin") (join-path tmp-dir "completions" "zsh")])
+    (run ["/bin/mkdir" "-p" (join-path tmp-dir "bin") (join-path tmp-dir "completions" "zsh") (join-path tmp-dir "man" "man1")])
     (download-file (string base-url "/bin/pkg") wrapper-src)
     (download-file (string base-url "/pkg.janet") cli-src)
     (download-file (string base-url "/packages.janet") registry-src)
     (download-file (string base-url "/completions/zsh/_pkg") zsh-completion-src)
+    (download-file (string base-url "/man/man1/pkg.1") man-src)
     (copy-file wrapper-src wrapper-dest)
     (run ["/bin/chmod" "755" wrapper-dest])
     (copy-file cli-src cli-dest)
     (copy-file registry-src registry-dest)
     (copy-file zsh-completion-src zsh-completion-dest)
+    (copy-file man-src man-dest)
     (write-self-meta @{:source :remote
                        :repo repo
                        :ref ref
@@ -394,6 +419,12 @@
 (defn app-source-path [pkg app]
   (join-path (package-install-dir pkg) (get app :path)))
 
+(defn asset-source-path [pkg path]
+  (let [source (get pkg :source)]
+    (if (= :link (get source :type))
+      (join-path (expand-project-path (get source :path)) path)
+      (join-path (package-install-dir pkg) path))))
+
 (defn manifest-source-data [source]
   (var out @{:type (get source :type)})
   (if (get source :url)
@@ -415,6 +446,8 @@
 (defn write-manifest [pkg]
   (let [linked @[]
         apps @[]
+        completions @[]
+        man-pages @[]
         source (get pkg :source)]
     (each link (package-links pkg)
       (array/push linked @{:name (get link :name)
@@ -424,6 +457,14 @@
       (array/push apps @{:name (get app :name)
                          :path (app-target app)
                          :source (app-source-path pkg app)}))
+    (each entry (package-zsh-completions pkg)
+      (array/push completions @{:name (get entry :name)
+                                :path (join-path (zsh-completions-dir) (get entry :name))
+                                :source (asset-source-path pkg (get entry :path))}))
+    (each entry (package-man-pages pkg)
+      (array/push man-pages @{:name (get entry :name)
+                              :path (join-path (man1-dir) (get entry :name))
+                              :source (asset-source-path pkg (get entry :path))}))
     (run ["/bin/mkdir" "-p" (package-manifest-dir pkg)])
     (spit (package-manifest-file pkg)
           (string
@@ -435,6 +476,8 @@
                 :bins (package-bins pkg)
                 :linked linked
                 :apps apps
+                :completions completions
+                :man-pages man-pages
                 :source (manifest-source-data source)})
             "\n"))))
 
@@ -473,6 +516,14 @@
   (or (get manifest :apps)
       @[]))
 
+(defn manifest-completions [manifest]
+  (or (get manifest :completions)
+      @[]))
+
+(defn manifest-man-pages [manifest]
+  (or (get manifest :man-pages)
+      @[]))
+
 (defn manifest-kind [manifest]
   (let [kind (get manifest :kind)]
     (if kind
@@ -507,7 +558,15 @@
   (each app (manifest-apps manifest)
     (let [path (get app :path)]
       (if (os/stat path)
-        (run ["/bin/rm" "-rf" path])))))
+        (run ["/bin/rm" "-rf" path]))))
+  (each entry (manifest-completions manifest)
+    (let [path (get entry :path)]
+      (if (os/stat path)
+        (run ["/bin/rm" "-f" path]))))
+  (each entry (manifest-man-pages manifest)
+    (let [path (get entry :path)]
+      (if (os/stat path)
+        (run ["/bin/rm" "-f" path])))))
 
 (defn remove-manifest [name version]
   (let [manifest-dir (package-manifest-dir (manifest-pkg name version))
@@ -558,6 +617,22 @@
     (run ["/bin/mv" source dest])
     (print "installed app " (get app :name) " -> " dest)))
 
+(defn install-zsh-completion [pkg entry]
+  (let [source (asset-source-path pkg (get entry :path))
+        dest (join-path (zsh-completions-dir) (get entry :name))]
+    (if (not (os/stat source))
+      (fail (string "missing zsh completion at " source)))
+    (copy-file source dest)
+    (print "installed zsh completion " (get entry :name) " -> " dest)))
+
+(defn install-man-page [pkg entry]
+  (let [source (asset-source-path pkg (get entry :path))
+        dest (join-path (man1-dir) (get entry :name))]
+    (if (not (os/stat source))
+      (fail (string "missing man page at " source)))
+    (copy-file source dest)
+    (print "installed man page " (get entry :name) " -> " dest)))
+
 (defn link-package-exposed [pkg]
   (each link (package-links pkg)
     (link-exposed-path pkg link)))
@@ -566,11 +641,18 @@
   (each app (package-apps pkg)
     (install-app-bundle pkg app)))
 
+(defn install-package-assets [pkg]
+  (each entry (package-zsh-completions pkg)
+    (install-zsh-completion pkg entry))
+  (each entry (package-man-pages pkg)
+    (install-man-page pkg entry)))
+
 (defn link-local-package [pkg]
   (let [source (get pkg :source)]
     (run ["/bin/mkdir" "-p" (package-install-dir pkg)])
     (spit (join-path (package-install-dir pkg) ".pkg-link-source")
           (string (expand-project-path (get source :path)) "\n"))
+    (install-package-assets pkg)
     (link-package-exposed pkg)))
 
 (defn reset-build-dir [pkg]
@@ -694,6 +776,7 @@
           (fail (string "unsupported source type: " (get source :type))))
         (run-package-phases pkg)
         (install-package-apps pkg)
+        (install-package-assets pkg)
         (link-package-exposed pkg)
         (write-manifest pkg)
         (print "installed " name " -> " target)))))
@@ -935,6 +1018,16 @@
           (do
             (print "linked:")
             (each entry (manifest-linked-bins manifest)
+              (print "  " (get entry :name) " -> " (get entry :path)))))
+        (if (> (length (manifest-completions manifest)) 0)
+          (do
+            (print "completions:")
+            (each entry (manifest-completions manifest)
+              (print "  zsh " (get entry :name) " -> " (get entry :path)))))
+        (if (> (length (manifest-man-pages manifest)) 0)
+          (do
+            (print "man pages:")
+            (each entry (manifest-man-pages manifest)
               (print "  " (get entry :name) " -> " (get entry :path)))))
         (if (> (length (manifest-apps manifest)) 0)
           (do

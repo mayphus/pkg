@@ -42,7 +42,11 @@
       :copy-paths [@{:from "gh_2.89.0_macOS_arm64/bin/gh"
                      :to "bin/gh"
                      :mode "755"}]
+      :post-install ["mkdir -p \"$PREFIX/share/pkg/completions/zsh\""
+                     "\"$PREFIX/bin/gh\" completion -s zsh > \"$PREFIX/share/pkg/completions/zsh/_gh\""]
       :bins ["gh"]
+      :zsh-completions [@{:name "_gh"
+                          :path "share/pkg/completions/zsh/_gh"}]
       :notes "Installs the prebuilt GitHub CLI macOS arm64 release archive."}
 
     "codex"
@@ -202,6 +206,10 @@
               "cp clojure.1 \"$PREFIX/share/man/man1/clojure.1\""
               "cp clj.1 \"$PREFIX/share/man/man1/clj.1\""]
       :bins ["clojure" "clj"]
+      :man-pages [@{:name "clojure.1"
+                     :path "share/man/man1/clojure.1"}
+                  @{:name "clj.1"
+                     :path "share/man/man1/clj.1"}]
       :notes "Installs the official Clojure CLI tools distribution for macOS arm64."}
 
     "babashka"

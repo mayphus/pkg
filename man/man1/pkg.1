@@ -1,0 +1,103 @@
+.Dd April 12, 2026
+.Dt PKG 1
+.Os
+.Sh NAME
+.Nm pkg
+.Nd personal package manager for macOS user prefixes
+.Sh SYNOPSIS
+.Nm
+.Ar command
+.Op Ar args
+.Nm
+.Cm help
+.Op Ar command
+.Sh DESCRIPTION
+.Nm
+manages packages in the user prefix under
+.Pa ~/.local .
+CLI and runtime packages are installed under
+.Pa ~/.local/opt
+and exposed through
+.Pa ~/.local/bin .
+Managed GUI applications are installed in
+.Pa ~/Applications .
+.Pp
+The command set is intentionally small and follows a ports-style workflow:
+.Bl -tag -width indent
+.It Cm list
+List registry packages.
+.It Cm search
+Search registry packages.
+.It Cm installed
+List installed packages.
+.It Cm show
+Show registry metadata for a package.
+.It Cm info
+Show installed package state from the manifest.
+.It Cm install
+Install a package.
+.It Cm reinstall
+Remove and install the current package version.
+.It Cm remove
+Remove a package.
+.It Cm upgrade
+Upgrade one package or all installed packages with
+.Cm --all .
+.It Cm self-upgrade
+Refresh
+.Nm
+itself from the configured bootstrap source.
+.It Cm cleanup
+Remove build state, and optionally cached downloads.
+.It Cm audit
+Report integrity-policy problems in the registry.
+.It Cm version
+Show installed
+.Nm
+bootstrap metadata.
+.It Cm doctor
+Print installation paths and environment diagnostics.
+.El
+.Sh FILES
+.Bl -tag -width "~/.local/share/pkg/completions/zsh/_pkg"
+.It Pa ~/.local/bin
+User-visible command symlinks and wrappers.
+.It Pa ~/.local/opt
+Versioned package payloads.
+.It Pa ~/.local/share/pkg
+Package state, manifests, caches, completions, and runtime files.
+.It Pa ~/.config/pkg
+Bootstrap and release configuration.
+.It Pa ~/.local/share/pkg/completions/zsh/_pkg
+Installed zsh completion for
+.Nm .
+.El
+.Sh EXAMPLES
+.Bd -literal -offset indent
+pkg install bun
+pkg show python
+pkg info google-chrome
+pkg upgrade --all
+pkg self-upgrade
+pkg cleanup --cache
+.Ed
+.Sh ENVIRONMENT
+.Bl -tag -width "PKG_BOOTSTRAP_REPO"
+.It Ev PKG_RELEASE_REPO
+Default GitHub release repository used by
+.Cm :github-release
+packages.
+.It Ev PKG_BOOTSTRAP_REPO
+Bootstrap repository used by
+.Cm self-upgrade .
+.It Ev PKG_BOOTSTRAP_REF
+Bootstrap ref used by
+.Cm self-upgrade .
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Xr janet 1
+.Sh AUTHORS
+.Nm
+is maintained by Mayphus.
