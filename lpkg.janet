@@ -1,25 +1,6 @@
 #!/usr/bin/env janet
 
-(import os)
-(import string)
 (import ./packages :as reg)
-
-(setdyn :doc
-  "lpkg: a small personal package manager for ~/.local.
-
-This is intentionally narrow in scope. It installs packages into:
-
-  ~/.local/bin
-  ~/.local/opt/<name>/<version>
-  ~/.local/share/lpkg
-  ~/.config/lpkg
-
-Supported source types:
-
-  :url   download an archive and run shell build steps
-  :git   clone a repository and run shell build steps
-  :link  symlink local files into ~/.local/bin
-")
 
 (defn fail [message]
   (print "error: " message)
@@ -78,7 +59,7 @@ Supported source types:
     env))
 
 (defn run [args &opt env]
-  (print "$ " (string/join " " args))
+  (print "$ " (string/join args " "))
   (if env
     (os/execute args :epx env)
     (os/execute args :px)))
@@ -215,8 +196,9 @@ Supported source types:
 
 (defn command-list []
   (print "available packages:")
-  (each [name pkg] reg/packages
-    (print "  " name "  " (get pkg :version))))
+  (eachk name reg/packages
+    (let [pkg (get reg/packages name)]
+      (print "  " name "  " (get pkg :version)))))
 
 (defn command-installed []
   (let [root (opt-dir)]
@@ -239,7 +221,7 @@ Supported source types:
       (print "url:     " (get (get pkg :source) :url)))
     (if (get (get pkg :source) :path)
       (print "path:    " (get (get pkg :source) :path)))
-    (print "bins:    " (string/join ", " (get pkg :bins)))
+    (print "bins:    " (string/join (get pkg :bins) ", "))
     (if (get pkg :notes)
       (print "notes:   " (get pkg :notes)))))
 
@@ -265,19 +247,25 @@ Supported source types:
   (print "  remove <pkg>         remove a package")
   (print "  doctor               create layout and print paths"))
 
-(defn main [& args]
-  (let [command (get args 0)]
-    (case command
-      "list" (command-list)
-      "installed" (command-installed)
-      "show" (if (get args 1)
-               (command-show (get args 1))
-               (fail "show requires a package name"))
-      "install" (if (get args 1)
-                  (install-package (get args 1))
-                  (fail "install requires a package name"))
-      "remove" (if (get args 1)
-                 (remove-package (get args 1))
-                 (fail "remove requires a package name"))
-      "doctor" (command-doctor)
-      (usage))))
+(defn main [& argv]
+  (let [args (tuple/slice argv 1)
+        command (get args 0)]
+    (if (= command "list")
+      (command-list)
+      (if (= command "installed")
+        (command-installed)
+        (if (= command "show")
+          (if (get args 1)
+            (command-show (get args 1))
+            (fail "show requires a package name"))
+          (if (= command "install")
+            (if (get args 1)
+              (install-package (get args 1))
+              (fail "install requires a package name"))
+            (if (= command "remove")
+              (if (get args 1)
+                (remove-package (get args 1))
+                (fail "remove requires a package name"))
+              (if (= command "doctor")
+                (command-doctor)
+                (usage)))))))))
