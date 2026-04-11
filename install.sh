@@ -37,7 +37,7 @@ SCRIPT_DIR=""
 LOCAL_SOURCE_ROOT=""
 if [ -n "${SCRIPT_PATH}" ] && [ -f "${SCRIPT_PATH}" ]; then
   SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${SCRIPT_PATH}")" && pwd)"
-  if [ -f "${SCRIPT_DIR}/bin/pkg" ] && [ -f "${SCRIPT_DIR}/pkg.janet" ] && [ -f "${SCRIPT_DIR}/packages.janet" ]; then
+  if [ -f "${SCRIPT_DIR}/bin/pkg" ] && [ -f "${SCRIPT_DIR}/pkg.janet" ] && [ -f "${SCRIPT_DIR}/pkg-help.janet" ] && [ -f "${SCRIPT_DIR}/pkg-paths.janet" ] && [ -f "${SCRIPT_DIR}/pkg-state.janet" ] && [ -f "${SCRIPT_DIR}/pkg-self.janet" ] && [ -f "${SCRIPT_DIR}/packages.janet" ]; then
     LOCAL_SOURCE_ROOT="${SCRIPT_DIR}"
   fi
 fi
@@ -136,6 +136,10 @@ install_pkg() {
   fetch_pkg_file "bin/pkg" "${BIN_DIR}/pkg"
   chmod 755 "${BIN_DIR}/pkg"
   fetch_pkg_file "pkg.janet" "${PKG_LIB_DIR}/pkg.janet"
+  fetch_pkg_file "pkg-help.janet" "${PKG_LIB_DIR}/pkg-help.janet"
+  fetch_pkg_file "pkg-paths.janet" "${PKG_LIB_DIR}/pkg-paths.janet"
+  fetch_pkg_file "pkg-state.janet" "${PKG_LIB_DIR}/pkg-state.janet"
+  fetch_pkg_file "pkg-self.janet" "${PKG_LIB_DIR}/pkg-self.janet"
   fetch_pkg_file "packages.janet" "${PKG_LIB_DIR}/packages.janet"
   fetch_pkg_file "completions/zsh/_pkg" "${ZSH_COMPLETIONS_DIR}/_pkg"
   fetch_pkg_file "man/man1/pkg.1" "${MAN1_DIR}/pkg.1"

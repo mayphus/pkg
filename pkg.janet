@@ -1,175 +1,63 @@
 #!/usr/bin/env janet
 
 (import ./packages :as reg)
+(import ./pkg-help :as help)
+(import ./pkg-paths :as path)
+(import ./pkg-state :as state)
+(import ./pkg-self :as self)
 
-(defn fail [message]
-  (print "error: " message)
-  (os/exit 1))
-
-(defn home []
-  (or (os/getenv "HOME")
-      (fail "HOME is not set")))
-
-(defn project-root []
-  (or (os/getenv "PKG_ROOT")
-      (os/getenv "LPKG_ROOT")
-      (os/cwd)))
-
-(defn join-path [& parts]
-  (var out "")
-  (each part parts
-    (if (and part (not (= part "")))
-      (if (= out "")
-        (set out part)
-        (set out (string out "/" part)))))
-  out)
-
-(defn last-part [parts]
-  (if (= 0 (length parts))
-    ""
-    (get parts (- (length parts) 1))))
-
-(defn basename [path]
-  (last-part (string/split "/" path)))
-
-(defn dirname [path]
-  (let [parts (string/split "/" path)]
-    (if (<= (length parts) 1)
-      "."
-      (string/join (array/slice parts 0 (- (length parts) 1)) "/"))))
-
-(defn package-root []
-  (join-path (home) ".local"))
-
-(defn bin-dir []
-  (join-path (package-root) "bin"))
-
-(defn opt-dir []
-  (join-path (package-root) "opt"))
-
-(defn share-dir []
-  (join-path (package-root) "share" "pkg"))
-
-(defn config-dir []
-  (join-path (home) ".config" "pkg"))
-
-(defn applications-dir []
-  (join-path (home) "Applications"))
-
-(defn input-methods-dir []
-  (join-path (home) "Library" "Input Methods"))
-
-(defn cache-dir []
-  (join-path (share-dir) "cache"))
-
-(defn lib-dir []
-  (join-path (share-dir) "lib"))
-
-(defn installed-dir []
-  (join-path (share-dir) "installed"))
-
-(defn build-root []
-  (join-path (share-dir) "build"))
-
-(defn self-source-file []
-  (join-path (config-dir) "self-source"))
-
-(defn bootstrap-repo-file []
-  (join-path (config-dir) "bootstrap-repo"))
-
-(defn bootstrap-ref-file []
-  (join-path (config-dir) "bootstrap-ref"))
-
-(defn release-repo-file []
-  (join-path (config-dir) "release-repo"))
-
-(defn self-meta-file []
-  (join-path (config-dir) "self-meta.jdn"))
-
-(defn completions-dir []
-  (join-path (share-dir) "completions"))
-
-(defn zsh-completions-dir []
-  (join-path (completions-dir) "zsh"))
-
-(defn man-dir []
-  (join-path (package-root) "share" "man"))
-
-(defn man1-dir []
-  (join-path (man-dir) "man1"))
-
-(defn path-prefix? [prefix path]
-  (and prefix
-       path
-       (>= (length path) (length prefix))
-       (= prefix (string/slice path 0 (length prefix)))))
-
-(defn shell-assignments [env]
-  (var parts @[])
-  (eachk key env
-    (array/push parts (string "export " key "=\"" (get env key) "\";")))
-  (string/join parts " "))
-
-(defn run [args &opt env]
-  (print "$ " (string/join args " "))
-  (if env
-    (os/execute args :epx env)
-    (os/execute args :px)))
-
-(defn run-shell [command env]
-  (def shell-command
-    (if env
-      (string (shell-assignments env) " " command)
-      command))
-  (print "$ " shell-command)
-  (os/execute ["/bin/sh" "-lc" shell-command] :px))
-
-(defn capture-command [args]
-  (let [tmp-output (join-path (build-root) ".capture-command")
-        command (string
-                  "("
-                  (string/join args " ")
-                  ") > \""
-                  tmp-output
-                  "\" 2>/dev/null")
-        status (os/shell command)]
-    (if (not= 0 status)
-      nil
-      (string/trim (slurp tmp-output)))))
-
-(defn ensure-layout []
-  (run ["/bin/mkdir" "-p"
-        (bin-dir)
-        (opt-dir)
-        (cache-dir)
-        (lib-dir)
-        (zsh-completions-dir)
-        (man1-dir)
-        (installed-dir)
-        (build-root)
-        (config-dir)]))
-
-(defn package-install-dir [pkg]
-  (join-path (opt-dir) (get pkg :name) (get pkg :version)))
-
-(defn package-build-dir [pkg]
-  (join-path (build-root) (string (get pkg :name) "-" (get pkg :version))))
-
-(defn package-source-dir [pkg]
-  (join-path (package-build-dir pkg) "src"))
-
-(defn package-manifest-dir [pkg]
-  (join-path (installed-dir) (get pkg :name) (get pkg :version)))
-
-(defn package-manifest-file [pkg]
-  (join-path (package-manifest-dir pkg) "manifest.jdn"))
-
-(defn package-env [pkg]
-  @{"PREFIX" (package-install-dir pkg)
-    "SRC_DIR" (package-source-dir pkg)
-    "BUILD_DIR" (package-source-dir pkg)
-    "PKG_NAME" (get pkg :name)
-    "PKG_VERSION" (get pkg :version)})
+(def fail path/fail)
+(def home path/home)
+(def project-root path/project-root)
+(def join-path path/join-path)
+(def basename path/basename)
+(def dirname path/dirname)
+(def package-root path/package-root)
+(def bin-dir path/bin-dir)
+(def opt-dir path/opt-dir)
+(def share-dir path/share-dir)
+(def config-dir path/config-dir)
+(def applications-dir path/applications-dir)
+(def input-methods-dir path/input-methods-dir)
+(def cache-dir path/cache-dir)
+(def lib-dir path/lib-dir)
+(def installed-dir path/installed-dir)
+(def build-root path/build-root)
+(def self-source-file path/self-source-file)
+(def bootstrap-repo-file path/bootstrap-repo-file)
+(def bootstrap-ref-file path/bootstrap-ref-file)
+(def release-repo-file path/release-repo-file)
+(def self-meta-file path/self-meta-file)
+(def completions-dir path/completions-dir)
+(def zsh-completions-dir path/zsh-completions-dir)
+(def man-dir path/man-dir)
+(def man1-dir path/man1-dir)
+(def path-prefix? path/path-prefix?)
+(def run path/run)
+(def run-shell path/run-shell)
+(def ensure-layout path/ensure-layout)
+(def expand-project-path path/expand-project-path)
+(def expand-home-path path/expand-home-path)
+(def copy-file path/copy-file)
+(def download-file path/download-file)
+(def package-install-dir state/package-install-dir)
+(def package-build-dir state/package-build-dir)
+(def package-source-dir state/package-source-dir)
+(def package-manifest-dir state/package-manifest-dir)
+(def package-manifest-file state/package-manifest-file)
+(def package-env state/package-env)
+(def manifest-pkg state/manifest-pkg)
+(def read-manifest state/read-manifest)
+(def installed-package-versions state/installed-package-versions)
+(def installed-package-names state/installed-package-names)
+(def remove-empty-dir state/remove-empty-dir)
+(def self-source-root self/self-source-root)
+(def configured-release-repo self/configured-release-repo)
+(def configured-bootstrap-repo self/configured-bootstrap-repo)
+(def configured-bootstrap-ref self/configured-bootstrap-ref)
+(def read-self-meta self/read-self-meta)
+(def install-self-files self/install-self-files)
+(def install-self-files-from-remote self/install-self-files-from-remote)
 
 (defn package-bins [pkg]
   (or (get pkg :bins)
@@ -207,72 +95,11 @@
           :cli
           :runtime))))
 
-(defn expand-project-path [value]
-  (if (or (= "" value)
-          (= "/" (string/slice value 0 1)))
-    value
-    (join-path (project-root) value)))
-
-(defn expand-home-path [value]
-  (if (and value
-           (> (length value) 2)
-           (= "~/" (string/slice value 0 2)))
-    (join-path (home) (string/slice value 2))
-    value))
-
 (defn package-by-name [name]
   (let [pkg (get reg/packages name)]
     (if pkg
       pkg
       (fail (string "unknown package: " name)))))
-
-(defn manifest-pkg [name version]
-  @{:name name
-    :version version})
-
-(defn self-source-root []
-  (let [runtime-root (project-root)
-        recorded (if (os/stat (self-source-file))
-                   (string/trim (slurp (self-source-file)))
-                   nil)]
-    (if (os/stat (join-path runtime-root ".git"))
-      runtime-root
-      recorded)))
-
-(defn configured-release-repo []
-  (or (os/getenv "PKG_RELEASE_REPO")
-      (if (os/stat (release-repo-file))
-        (string/trim (slurp (release-repo-file)))
-        nil)))
-
-(defn configured-bootstrap-repo []
-  (or (os/getenv "PKG_BOOTSTRAP_REPO")
-      (if (os/stat (bootstrap-repo-file))
-        (string/trim (slurp (bootstrap-repo-file)))
-        "mayphus/pkg")))
-
-(defn configured-bootstrap-ref []
-  (or (os/getenv "PKG_BOOTSTRAP_REF")
-      (if (os/stat (bootstrap-ref-file))
-        (string/trim (slurp (bootstrap-ref-file)))
-        "main")))
-
-(defn read-self-meta []
-  (if (os/stat (self-meta-file))
-    (parse (slurp (self-meta-file)))
-    nil))
-
-(defn write-self-meta [meta]
-  (spit (self-meta-file)
-        (string (string/format "%q" meta) "\n")))
-
-(defn git-head-revision [root]
-  (capture-command ["git" "-C" root "rev-parse" "HEAD"]))
-
-(defn remote-bootstrap-revision []
-  (let [repo (configured-bootstrap-repo)
-        ref (configured-bootstrap-ref)]
-    (capture-command ["git" "ls-remote" (string "https://github.com/" repo ".git") ref])))
 
 (defn current-link-target [path]
   (if (os/stat path)
@@ -282,18 +109,6 @@
 (defn managed-link-target? [path]
   (or (path-prefix? (package-root) path)
       (path-prefix? (project-root) path)))
-
-(defn copy-file [source dest]
-  (run ["/bin/mkdir" "-p" (dirname dest)])
-  (if (os/stat dest)
-    (run ["/bin/rm" "-f" dest]))
-  (run ["/bin/cp" source dest]))
-
-(defn download-file [url dest]
-  (run ["/bin/mkdir" "-p" (dirname dest)])
-  (if (os/stat dest)
-    (run ["/bin/rm" "-f" dest]))
-  (run ["/usr/bin/curl" "-fsSL" url "-o" dest]))
 
 (defn ensure-sha256 [archive-path expected]
   (if expected
@@ -340,74 +155,6 @@
     (and (source-downloadable? source)
          (not (= :required (source-integrity-policy source)))
          (= nil (get source :sha256)))))
-
-(defn install-self-files [source-root]
-  (let [resolved (expand-project-path source-root)
-        wrapper-src (join-path resolved "bin" "pkg")
-        cli-src (join-path resolved "pkg.janet")
-        registry-src (join-path resolved "packages.janet")
-        zsh-completion-src (join-path resolved "completions" "zsh" "_pkg")
-        man-src (join-path resolved "man" "man1" "pkg.1")
-        wrapper-dest (join-path (bin-dir) "pkg")
-        cli-dest (join-path (lib-dir) "pkg.janet")
-        registry-dest (join-path (lib-dir) "packages.janet")
-        zsh-completion-dest (join-path (zsh-completions-dir) "_pkg")
-        man-dest (join-path (man1-dir) "pkg.1")]
-    (if (not (os/stat wrapper-src))
-      (fail (string "missing pkg wrapper at " wrapper-src)))
-    (if (not (os/stat cli-src))
-      (fail (string "missing pkg CLI at " cli-src)))
-    (if (not (os/stat registry-src))
-      (fail (string "missing pkg registry at " registry-src)))
-    (if (not (os/stat zsh-completion-src))
-      (fail (string "missing pkg zsh completion at " zsh-completion-src)))
-    (if (not (os/stat man-src))
-      (fail (string "missing pkg man page at " man-src)))
-    (copy-file wrapper-src wrapper-dest)
-    (run ["/bin/chmod" "755" wrapper-dest])
-    (copy-file cli-src cli-dest)
-    (copy-file registry-src registry-dest)
-    (copy-file zsh-completion-src zsh-completion-dest)
-    (copy-file man-src man-dest)
-    (spit (self-source-file) (string resolved "\n"))
-    (write-self-meta @{:source :local
-                       :root resolved
-                       :revision (git-head-revision resolved)})
-    (print "installed pkg into " wrapper-dest)))
-
-(defn install-self-files-from-remote []
-  (let [repo (configured-bootstrap-repo)
-        ref (configured-bootstrap-ref)
-        base-url (string "https://raw.githubusercontent.com/" repo "/" ref)
-        tmp-dir (join-path (build-root) "pkg-self-update")
-        wrapper-src (join-path tmp-dir "bin" "pkg")
-        cli-src (join-path tmp-dir "pkg.janet")
-        registry-src (join-path tmp-dir "packages.janet")
-        zsh-completion-src (join-path tmp-dir "completions" "zsh" "_pkg")
-        man-src (join-path tmp-dir "man" "man1" "pkg.1")
-        wrapper-dest (join-path (bin-dir) "pkg")
-        cli-dest (join-path (lib-dir) "pkg.janet")
-        registry-dest (join-path (lib-dir) "packages.janet")
-        zsh-completion-dest (join-path (zsh-completions-dir) "_pkg")
-        man-dest (join-path (man1-dir) "pkg.1")]
-    (run ["/bin/rm" "-rf" tmp-dir])
-    (run ["/bin/mkdir" "-p" (join-path tmp-dir "bin") (join-path tmp-dir "completions" "zsh") (join-path tmp-dir "man" "man1")])
-    (download-file (string base-url "/bin/pkg") wrapper-src)
-    (download-file (string base-url "/pkg.janet") cli-src)
-    (download-file (string base-url "/packages.janet") registry-src)
-    (download-file (string base-url "/completions/zsh/_pkg") zsh-completion-src)
-    (download-file (string base-url "/man/man1/pkg.1") man-src)
-    (copy-file wrapper-src wrapper-dest)
-    (run ["/bin/chmod" "755" wrapper-dest])
-    (copy-file cli-src cli-dest)
-    (copy-file registry-src registry-dest)
-    (copy-file zsh-completion-src zsh-completion-dest)
-    (copy-file man-src man-dest)
-    (write-self-meta @{:source :remote
-                       :repo repo
-                       :ref ref
-                       :revision (remote-bootstrap-revision)})
-    (print "installed pkg into " wrapper-dest)))
 
 (defn expected-bin-target [pkg bin-name]
   (let [source (get pkg :source)]
@@ -491,33 +238,6 @@
                 :man-pages man-pages
                 :source (manifest-source-data source)})
             "\n"))))
-
-(defn read-manifest [name version]
-  (let [path (package-manifest-file (manifest-pkg name version))]
-    (if (os/stat path)
-      (parse (slurp path))
-      nil)))
-
-(defn installed-package-versions [name]
-  (let [pkg-root (join-path (installed-dir) name)]
-    (if (os/stat pkg-root)
-      (filter (fn [version] (read-manifest name version))
-              (os/dir pkg-root))
-      @[])))
-
-(defn installed-package-names []
-  (let [root (installed-dir)
-        names @[]]
-    (if (os/stat root)
-      (each name (os/dir root)
-        (if (> (length (installed-package-versions name)) 0)
-          (array/push names name))))
-    names))
-
-(defn remove-empty-dir [path]
-  (if (and (os/stat path)
-           (= 0 (length (os/dir path))))
-    (run ["/bin/rm" "-rf" path])))
 
 (defn manifest-linked-bins [manifest]
   (or (get manifest :linked)
@@ -1230,105 +950,14 @@
           (print "revision:" " " (get meta :revision))))
       (print "source:  unknown"))))
 
-(defn usage []
-  (print "usage: pkg command [args]")
-  (print "       pkg help [command]")
-  (print "")
-  (print "commands:")
-  (print "  help         show general or command help")
-  (print "  list         list registry packages")
-  (print "  search       search registry packages")
-  (print "  installed    list installed packages")
-  (print "  show         show package metadata")
-  (print "  info         show installed package details")
-  (print "  install      install a package")
-  (print "  reinstall    reinstall current package version")
-  (print "  remove       remove a package")
-  (print "  upgrade      upgrade one package or --all")
-  (print "  self-upgrade upgrade pkg itself")
-  (print "  cleanup      remove build state, optionally cache")
-  (print "  audit        report integrity issues")
-  (print "  version      show pkg source metadata")
-  (print "  doctor       print layout and path diagnostics"))
-
-(defn command-help [topic]
-  (case topic
-    nil (usage)
-    "help" (do
-             (print "usage: pkg help [command]")
-             (print "")
-             (print "Show general help or help for a single command."))
-    "list" (do
-             (print "usage: pkg list")
-             (print "")
-             (print "List package names and current registry versions."))
-    "search" (do
-               (print "usage: pkg search term")
-               (print "")
-               (print "Search package names and notes."))
-    "installed" (do
-                  (print "usage: pkg installed")
-                  (print "")
-                  (print "List installed packages with version, kind, and source."))
-    "show" (do
-             (print "usage: pkg show package")
-             (print "")
-             (print "Show registry metadata for a package."))
-    "info" (do
-             (print "usage: pkg info package")
-             (print "")
-             (print "Show installed package state from the manifest."))
-    "install" (do
-                (print "usage: pkg install package")
-                (print "       pkg install --dry-run package")
-                (print "")
-                (print "Fetch, build, and install a package."))
-    "reinstall" (do
-                  (print "usage: pkg reinstall package")
-                  (print "")
-                  (print "Remove the current installed version, then install it again."))
-    "remove" (do
-               (print "usage: pkg remove package")
-               (print "       pkg remove --dry-run package")
-               (print "")
-               (print "Remove the current registry version of a package."))
-    "upgrade" (do
-                (print "usage: pkg upgrade package")
-                (print "       pkg upgrade --dry-run package")
-                (print "       pkg upgrade --all")
-                (print "")
-                (print "Upgrade one installed package to the current registry version,")
-                (print "or upgrade all installed packages that are behind."))
-    "self-upgrade" (do
-                     (print "usage: pkg self-upgrade")
-                     (print "")
-                     (print "Refresh pkg itself from the configured bootstrap source."))
-    "cleanup" (do
-                (print "usage: pkg cleanup [--cache]")
-                (print "")
-                (print "Remove build state. With --cache, also remove cached downloads."))
-    "audit" (do
-              (print "usage: pkg audit")
-              (print "")
-              (print "Report packages missing required integrity data."))
-    "version" (do
-                (print "usage: pkg version")
-                (print "")
-                (print "Show installed pkg bootstrap source and revision."))
-    "doctor" (do
-               (print "usage: pkg doctor")
-               (print "")
-               (print "Show pkg paths and basic environment diagnostics."))
-    (fail (string "unknown help topic: " topic))))
-
 (defn main [& argv]
   (let [args (tuple/slice argv 1)
         command (get args 0)]
     (case command
-      nil (usage)
-      "-h" (usage)
-      "--help" (usage)
-      "help" (command-help (get args 1))
+      nil (help/usage)
+      "-h" (help/usage)
+      "--help" (help/usage)
+      "help" (help/command-help (get args 1) fail)
       "list" (command-list)
       "search" (if (get args 1)
                  (command-search (get args 1))
@@ -1372,4 +1001,4 @@
       "doctor" (command-doctor)
       "audit" (command-audit)
       "version" (command-version)
-      (usage))))
+      (help/usage))))
