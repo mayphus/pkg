@@ -769,6 +769,71 @@
     (run-package-phase pkg :install))
   (run-package-phase pkg :post-install))
 
+(defn print-package-assets-plan [pkg]
+  (each entry (package-zsh-completions pkg)
+    (print "  zsh completion: " (asset-source-path pkg (get entry :path))
+           " -> "
+           (join-path (zsh-completions-dir) (get entry :name))))
+  (each entry (package-man-pages pkg)
+    (print "  man page: " (asset-source-path pkg (get entry :path))
+           " -> "
+           (join-path (man1-dir) (get entry :name)))))
+
+(defn dry-run-install-package [name]
+  (ensure-layout)
+  (let [pkg (package-by-name name)
+        source (get pkg :source)
+        target (package-install-dir pkg)]
+    (ensure-package-dependencies pkg)
+    (print "would install " name " " (get pkg :version))
+    (print "  kind: " (package-kind pkg))
+    (print "  source: " (get source :type))
+    (if (source-downloadable? source)
+      (print "  fetch: " (source-url source)))
+    (if (get source :path)
+      (print "  source path: " (expand-project-path (get source :path))))
+    (print "  prefix: " target)
+    (if (= :link (get source :type))
+      (print "  mode: link")
+      (do
+        (print "  build dir: " (package-build-dir pkg))
+        (if (package-install-mode pkg)
+          (print "  install mode: " (package-install-mode pkg)))
+        (each phase [:build :install :post-install :post-expose]
+          (let [commands (package-phase-commands pkg phase)]
+            (if (> (length commands) 0)
+              (do
+                (print "  " (string phase) ":")
+                (each command commands
+                  (print "    " command))))))))
+    (each link (package-links pkg)
+      (print "  link: " (join-path (bin-dir) (get link :name))
+             " -> "
+             (link-target pkg link)))
+    (each app (package-apps pkg)
+      (print "  app: " (app-source-path pkg app)
+             " -> "
+             (app-target app)))
+    (print-package-assets-plan pkg)))
+
+(defn dry-run-remove-installed-version [name version]
+  (ensure-layout)
+  (let [target (package-install-dir (manifest-pkg name version))
+        manifest (read-manifest name version)]
+    (if (not manifest)
+      (fail (string "package version is not installed: " name " " version)))
+    (print "would remove " name " " version)
+    (each entry (manifest-linked-bins manifest)
+      (print "  unlink: " (get entry :path)))
+    (each entry (manifest-completions manifest)
+      (print "  remove completion: " (get entry :path)))
+    (each entry (manifest-man-pages manifest)
+      (print "  remove man page: " (get entry :path)))
+    (each app (manifest-apps manifest)
+      (print "  remove app: " (get app :path)))
+    (print "  remove prefix: " target)
+    (print "  remove manifest: " (package-manifest-file (manifest-pkg name version)))))
+
 (defn install-package [name]
   (ensure-layout)
   (let [pkg (package-by-name name)
@@ -819,6 +884,11 @@
         version (get pkg :version)]
     (remove-installed-version name version)))
 
+(defn dry-run-remove-package [name]
+  (let [pkg (package-by-name name)
+        version (get pkg :version)]
+    (dry-run-remove-installed-version name version)))
+
 (defn package-upgrade-plan [name]
   (let [pkg (get reg/packages name)
         installed-versions (installed-package-versions name)]
@@ -866,6 +936,25 @@
         :outdated (do
                     (remove-installed-version name (get plan :installed))
                     (install-package name))
+        (fail (string "unknown package: " name))))))
+
+(defn dry-run-upgrade-package [name]
+  (if (= name "pkg")
+    (do
+      (print "would self-upgrade pkg")
+      (print "  repo: " (configured-bootstrap-repo))
+      (print "  ref: " (configured-bootstrap-ref)))
+    (let [plan (package-upgrade-plan name)]
+      (case (get plan :status)
+        :missing (fail (string "package is not installed: " name))
+        :multiple (fail (string "multiple installed versions for " name ": "
+                                (string/join (get plan :installed) ", ")
+                                " (remove one or use reinstall)"))
+        :current (print "already up to date: " name " " (get plan :target))
+        :outdated (do
+                    (print "would upgrade " name " " (get plan :installed) " -> " (get plan :target))
+                    (dry-run-remove-installed-version name (get plan :installed))
+                    (dry-run-install-package name))
         (fail (string "unknown package: " name))))))
 
 (defn command-upgrade-all []
@@ -1191,6 +1280,7 @@
              (print "Show installed package state from the manifest."))
     "install" (do
                 (print "usage: pkg install package")
+                (print "       pkg install --dry-run package")
                 (print "")
                 (print "Fetch, build, and install a package."))
     "reinstall" (do
@@ -1199,10 +1289,12 @@
                   (print "Remove the current installed version, then install it again."))
     "remove" (do
                (print "usage: pkg remove package")
+               (print "       pkg remove --dry-run package")
                (print "")
                (print "Remove the current registry version of a package."))
     "upgrade" (do
                 (print "usage: pkg upgrade package")
+                (print "       pkg upgrade --dry-run package")
                 (print "       pkg upgrade --all")
                 (print "")
                 (print "Upgrade one installed package to the current registry version,")
@@ -1248,21 +1340,33 @@
       "info" (if (get args 1)
                (command-info (get args 1))
                (fail "info requires a package name"))
-      "install" (if (get args 1)
-                  (install-package (get args 1))
-                  (fail "install requires a package name"))
+      "install" (if (= (get args 1) "--dry-run")
+                  (if (get args 2)
+                    (dry-run-install-package (get args 2))
+                    (fail "install --dry-run requires a package name"))
+                  (if (get args 1)
+                    (install-package (get args 1))
+                    (fail "install requires a package name")))
       "reinstall" (if (get args 1)
                     (reinstall-package (get args 1))
                     (fail "reinstall requires a package name"))
-      "remove" (if (get args 1)
-                 (remove-package (get args 1))
-                 (fail "remove requires a package name"))
-      "upgrade" (if (get args 1)
-                  (if (or (= (get args 1) "--all")
-                          (= (get args 1) "all"))
-                    (command-upgrade-all)
-                    (upgrade-package (get args 1)))
-                  (fail "upgrade requires a package name"))
+      "remove" (if (= (get args 1) "--dry-run")
+                 (if (get args 2)
+                   (dry-run-remove-package (get args 2))
+                   (fail "remove --dry-run requires a package name"))
+                 (if (get args 1)
+                   (remove-package (get args 1))
+                   (fail "remove requires a package name")))
+      "upgrade" (if (= (get args 1) "--dry-run")
+                  (if (get args 2)
+                    (dry-run-upgrade-package (get args 2))
+                    (fail "upgrade --dry-run requires a package name"))
+                  (if (get args 1)
+                    (if (or (= (get args 1) "--all")
+                            (= (get args 1) "all"))
+                      (command-upgrade-all)
+                      (upgrade-package (get args 1)))
+                    (fail "upgrade requires a package name")))
       "self-upgrade" (upgrade-package "pkg")
       "cleanup" (apply command-cleanup (tuple/slice args 1))
       "doctor" (command-doctor)

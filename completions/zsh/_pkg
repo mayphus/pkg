@@ -52,15 +52,32 @@ case $state in
         fi
         ;;
       show|install|reinstall)
-        _pkg_registry_packages
+        if [[ "${words[2]}" == "install" && CURRENT == 3 ]]; then
+          _values 'install option' --dry-run
+        elif [[ "${words[2]}" == "install" && "${words[3]}" == "--dry-run" && CURRENT == 4 ]]; then
+          _pkg_registry_packages
+        else
+          _pkg_registry_packages
+        fi
         ;;
       info|remove)
-        _pkg_installed_packages
+        if [[ "${words[2]}" == "remove" && CURRENT == 3 ]]; then
+          _values 'remove option' --dry-run
+        elif [[ "${words[2]}" == "remove" && "${words[3]}" == "--dry-run" && CURRENT == 4 ]]; then
+          _pkg_installed_packages
+        else
+          _pkg_installed_packages
+        fi
         ;;
       upgrade)
         if (( CURRENT == 3 )); then
           local -a upgrade_targets
-          upgrade_targets=(--all all pkg)
+          upgrade_targets=(--all all --dry-run pkg)
+          upgrade_targets+=(${(f)"$($words[1] installed 2>/dev/null | awk 'NR>2 {print $1}')"})
+          _describe -t targets 'upgrade target' upgrade_targets
+        elif [[ "${words[3]}" == "--dry-run" && CURRENT == 4 ]]; then
+          local -a upgrade_targets
+          upgrade_targets=(pkg)
           upgrade_targets+=(${(f)"$($words[1] installed 2>/dev/null | awk 'NR>2 {print $1}')"})
           _describe -t targets 'upgrade target' upgrade_targets
         fi
