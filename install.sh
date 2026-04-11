@@ -12,6 +12,8 @@ LIB_DIR="${PREFIX}/lib"
 PKG_LIB_DIR="${PREFIX}/share/pkg/lib"
 CONFIG_DIR="${HOME}/.config/pkg"
 SELF_SOURCE_FILE="${CONFIG_DIR}/self-source"
+BOOTSTRAP_REPO_FILE="${CONFIG_DIR}/bootstrap-repo"
+BOOTSTRAP_REF_FILE="${CONFIG_DIR}/bootstrap-ref"
 RELEASE_REPO_FILE="${CONFIG_DIR}/release-repo"
 
 JANET_VERSION="${JANET_VERSION:-1.41.2}"
@@ -126,6 +128,8 @@ install_pkg() {
   chmod 755 "${BIN_DIR}/pkg"
   fetch_pkg_file "pkg.janet" "${PKG_LIB_DIR}/pkg.janet"
   fetch_pkg_file "packages.janet" "${PKG_LIB_DIR}/packages.janet"
+  printf '%s\n' "${BOOTSTRAP_REPO}" > "${BOOTSTRAP_REPO_FILE}"
+  printf '%s\n' "${BOOTSTRAP_REF}" > "${BOOTSTRAP_REF_FILE}"
 
   if [ -n "${SCRIPT_DIR}" ] && [ -d "${SCRIPT_DIR}/.git" ]; then
     printf '%s\n' "${SCRIPT_DIR}" > "${SELF_SOURCE_FILE}"

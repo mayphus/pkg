@@ -26,7 +26,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 scripts/update_packages.py
-          ./scripts/generate-install.sh
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v7

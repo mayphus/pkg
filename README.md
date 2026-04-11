@@ -114,13 +114,25 @@ or
 
 That refreshes the installed wrapper and registry files in place.
 
-If you have a local checkout and want to update directly from it, you can also use:
+For installed `pkg`, the normal self-update command is:
 
 ```sh
 pkg upgrade pkg
 ```
 
-`pkg upgrade pkg` upgrades `pkg` from the checkout path recorded by `install.sh` when the installer is run from a git checkout. The remote one-liner install path does not record a source checkout, so in that case rerunning `install.sh` is the correct update path.
+`pkg upgrade pkg` now updates from the configured bootstrap repo and ref, which default to:
+
+- repo: `mayphus/pkg`
+- ref: `main`
+
+You can override those with:
+
+- `PKG_BOOTSTRAP_REPO`
+- `PKG_BOOTSTRAP_REF`
+
+or by editing the values recorded in `~/.config/pkg/bootstrap-repo` and `~/.config/pkg/bootstrap-ref`.
+
+If the remote bootstrap source is not available, rerunning `install.sh` is still a valid refresh path.
 
 ## GitHub Artifacts
 

@@ -71,6 +71,12 @@
 (defn self-source-file []
   (join-path (config-dir) "self-source"))
 
+(defn bootstrap-repo-file []
+  (join-path (config-dir) "bootstrap-repo"))
+
+(defn bootstrap-ref-file []
+  (join-path (config-dir) "bootstrap-ref"))
+
 (defn release-repo-file []
   (join-path (config-dir) "release-repo"))
 
@@ -191,6 +197,18 @@
         (string/trim (slurp (release-repo-file)))
         nil)))
 
+(defn configured-bootstrap-repo []
+  (or (os/getenv "PKG_BOOTSTRAP_REPO")
+      (if (os/stat (bootstrap-repo-file))
+        (string/trim (slurp (bootstrap-repo-file)))
+        "mayphus/pkg")))
+
+(defn configured-bootstrap-ref []
+  (or (os/getenv "PKG_BOOTSTRAP_REF")
+      (if (os/stat (bootstrap-ref-file))
+        (string/trim (slurp (bootstrap-ref-file)))
+        "main")))
+
 (defn current-link-target [path]
   (if (os/stat path)
     (os/readlink path)
@@ -205,6 +223,12 @@
   (if (os/stat dest)
     (run ["/bin/rm" "-f" dest]))
   (run ["/bin/cp" source dest]))
+
+(defn download-file [url dest]
+  (run ["/bin/mkdir" "-p" (dirname dest)])
+  (if (os/stat dest)
+    (run ["/bin/rm" "-f" dest]))
+  (run ["/usr/bin/curl" "-fsSL" url "-o" dest]))
 
 (defn ensure-sha256 [archive-path expected]
   (if expected
@@ -271,6 +295,28 @@
     (copy-file cli-src cli-dest)
     (copy-file registry-src registry-dest)
     (spit (self-source-file) (string resolved "\n"))
+    (print "installed pkg into " wrapper-dest)))
+
+(defn install-self-files-from-remote []
+  (let [repo (configured-bootstrap-repo)
+        ref (configured-bootstrap-ref)
+        base-url (string "https://raw.githubusercontent.com/" repo "/" ref)
+        tmp-dir (join-path (build-root) "pkg-self-update")
+        wrapper-src (join-path tmp-dir "bin" "pkg")
+        cli-src (join-path tmp-dir "pkg.janet")
+        registry-src (join-path tmp-dir "packages.janet")
+        wrapper-dest (join-path (bin-dir) "pkg")
+        cli-dest (join-path (lib-dir) "pkg.janet")
+        registry-dest (join-path (lib-dir) "packages.janet")]
+    (run ["/bin/rm" "-rf" tmp-dir])
+    (run ["/bin/mkdir" "-p" (join-path tmp-dir "bin")])
+    (download-file (string base-url "/bin/pkg") wrapper-src)
+    (download-file (string base-url "/pkg.janet") cli-src)
+    (download-file (string base-url "/packages.janet") registry-src)
+    (copy-file wrapper-src wrapper-dest)
+    (run ["/bin/chmod" "755" wrapper-dest])
+    (copy-file cli-src cli-dest)
+    (copy-file registry-src registry-dest)
     (print "installed pkg into " wrapper-dest)))
 
 (defn expected-bin-target [pkg bin-name]
@@ -580,13 +626,18 @@
 
 (defn upgrade-package [name]
   (if (= name "pkg")
-    (let [source-root (self-source-root)]
-      (if source-root
+    (do
+      (ensure-layout)
+      (if (configured-bootstrap-repo)
         (do
-          (ensure-layout)
-          (install-self-files source-root)
-          (print "upgraded pkg from " source-root))
-        (fail "no pkg source checkout recorded; rerun install.sh from a checkout")))
+          (install-self-files-from-remote)
+          (print "upgraded pkg from " (configured-bootstrap-repo) "@" (configured-bootstrap-ref)))
+        (let [source-root (self-source-root)]
+          (if source-root
+            (do
+              (install-self-files source-root)
+              (print "upgraded pkg from " source-root))
+            (fail "no pkg bootstrap repo or source checkout recorded")))))
     (let [pkg (package-by-name name)
           version (get pkg :version)
           installed-versions (installed-package-versions name)]
