@@ -1,0 +1,38 @@
+[
+  {
+    "name": "gh",
+    "repo": "cli/cli",
+    "tag_prefix": "v",
+    "asset_template": "gh_{version}_macOS_arm64.zip"
+  },
+  {
+    "name": "ripgrep",
+    "repo": "BurntSushi/ripgrep",
+    "tag_prefix": "",
+    "asset_template": "ripgrep-{version}-aarch64-apple-darwin.tar.gz"
+  },
+  {
+    "name": "bun",
+    "repo": "oven-sh/bun",
+    "tag_prefix": "bun-v",
+    "asset_template": "bun-darwin-aarch64.zip"
+  },
+  {
+    "name": "uv",
+    "repo": "astral-sh/uv",
+    "tag_prefix": "",
+    "asset_template": "uv-aarch64-apple-darwin.tar.gz"
+  },
+  {
+    "name": "babashka",
+    "repo": "babashka/babashka",
+    "tag_prefix": "v",
+    "asset_template": "babashka-{version}-macos-aarch64.tar.gz"
+  },
+  {
+    "name": "codex",
+    "repo": "openai/codex",
+    "tag_prefix": "rust-v",
+    "asset_template": "codex-aarch64-apple-darwin.tar.gz"
+  }
+]
