@@ -350,6 +350,16 @@ write_pkg_cli() {
       (get source :file)
       (basename (source-url source))))
 
+(defn source-downloadable? [source]
+  (let [source-type (get source :type)]
+    (or (= :url source-type)
+        (= :github-release source-type))))
+
+(defn package-missing-sha256? [pkg]
+  (let [source (get pkg :source)]
+    (and (source-downloadable? source)
+         (= nil (get source :sha256)))))
+
 (defn install-self-files [source-root]
   (let [resolved (expand-project-path source-root)
         wrapper-src (join-path resolved "bin" "pkg")
@@ -784,6 +794,24 @@ write_pkg_cli() {
   (print "make sure this is on PATH:")
   (print "  " (bin-dir)))
 
+(defn command-audit []
+  (let [missing @[]]
+    (eachk name reg/packages
+      (let [pkg (get reg/packages name)]
+        (if (package-missing-sha256? pkg)
+          (array/push missing pkg))))
+    (if (= 0 (length missing))
+      (print "audit ok: all downloadable packages have sha256")
+      (do
+        (print "packages missing sha256:")
+        (each pkg missing
+          (print "  "
+                 (string/format "%-18s" (get pkg :name))
+                 "  "
+                 (string (get (get pkg :source) :type))
+                 "  "
+                 (source-url (get pkg :source))))))))
+
 (defn usage []
   (print "pkg <command> [args]")
   (print "")
@@ -796,6 +824,7 @@ write_pkg_cli() {
   (print "  reinstall <pkg>      remove and install current package version")
   (print "  remove <pkg>         remove a package")
   (print "  upgrade <pkg>        upgrade an installed package")
+  (print "  audit                report packages missing sha256")
   (print "  doctor               create layout and print paths"))
 
 (defn main [& argv]
@@ -831,7 +860,9 @@ write_pkg_cli() {
                       (fail "upgrade requires a package name"))
                     (if (= command "doctor")
                       (command-doctor)
-                      (usage))))))))))))
+                      (if (= command "audit")
+                        (command-audit)
+                        (usage)))))))))))))
 EOF_PKG_CLI
 }
 
