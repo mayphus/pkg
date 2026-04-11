@@ -12,6 +12,8 @@
     @{:name "janet"
       :kind :runtime
       :version "1.41.2"
+      :homepage "https://janet-lang.org/"
+      :license "MIT"
       :source @{:type :url
                 :url "https://github.com/janet-lang/janet/archive/refs/tags/v1.41.2.tar.gz"
                 :archive :tar.gz
@@ -30,6 +32,8 @@
     @{:name "gh"
       :kind :cli
       :version "2.89.0"
+      :homepage "https://cli.github.com/"
+      :license "MIT"
       :source @{:type :url
                 :url "https://github.com/cli/cli/releases/download/v2.89.0/gh_2.89.0_macOS_arm64.zip"
                 :archive :zip
@@ -43,6 +47,8 @@
     @{:name "codex"
       :kind :cli
       :version "0.120.0"
+      :homepage "https://github.com/openai/codex"
+      :license "Apache-2.0"
       :source @{:type :url
                 :url "https://github.com/openai/codex/releases/download/rust-v0.120.0/codex-aarch64-apple-darwin.tar.gz"
                 :archive :tar.gz
@@ -56,6 +62,8 @@
     @{:name "gemini"
       :kind :tool
       :version "0.37.1"
+      :homepage "https://github.com/google-gemini/gemini-cli"
+      :license "Apache-2.0"
       :depends ["bun"]
       :source @{:type :url
                 :url "https://registry.npmjs.org/@google/gemini-cli/-/gemini-cli-0.37.1.tgz"
@@ -74,6 +82,8 @@
     @{:name "ripgrep"
       :kind :cli
       :version "15.1.0"
+      :homepage "https://github.com/BurntSushi/ripgrep"
+      :license "Unlicense/MIT"
       :source @{:type :url
                 :url "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-aarch64-apple-darwin.tar.gz"
                 :archive :tar.gz
@@ -88,6 +98,8 @@
     @{:name "tree"
       :kind :cli
       :version "2.2.1"
+      :homepage "https://oldmanprogrammer.net/source.php?dir=projects/tree"
+      :license "GPL-2.0-or-later"
       :source @{:type :url
                 :url "https://oldmanprogrammer.net/tar/tree/tree-2.2.1.tgz"
                 :archive :tar.gz
@@ -103,6 +115,8 @@
     @{:name "emacs"
       :kind :app
       :version "30.2-1"
+      :homepage "https://emacsformacosx.com/"
+      :license "GPL-3.0-or-later"
       :source @{:type :url
                 :url "https://emacsformacosx.com/emacs-builds/Emacs-30.2-1-universal.dmg"
                 :file-name "Emacs-30.2-1-universal.dmg"
@@ -119,6 +133,8 @@
     @{:name "openjdk"
       :kind :runtime
       :version "21.0.9+10"
+      :homepage "https://adoptium.net/"
+      :license "GPL-2.0-with-classpath-exception"
       :source @{:type :url
                 :url "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.9%2B10/OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.9_10.tar.gz"
                 :archive :tar.gz
@@ -142,6 +158,8 @@
     @{:name "bun"
       :kind :runtime
       :version "1.3.12"
+      :homepage "https://bun.sh/"
+      :license "MIT"
       :source @{:type :url
                 :url "https://github.com/oven-sh/bun/releases/download/bun-v1.3.12/bun-darwin-aarch64.zip"
                 :archive :zip
@@ -156,6 +174,8 @@
     @{:name "clojure"
       :kind :runtime
       :version "1.12.4.1618"
+      :homepage "https://clojure.org/"
+      :license "EPL-1.0"
       :source @{:type :url
                 :url "https://download.clojure.org/install/clojure-tools-1.12.4.1618.tar.gz"
                 :archive :tar.gz
@@ -182,6 +202,8 @@
     @{:name "babashka"
       :kind :cli
       :version "1.12.209"
+      :homepage "https://babashka.org/"
+      :license "EPL-1.0"
       :source @{:type :url
                 :url "https://github.com/babashka/babashka/releases/download/v1.12.209/babashka-1.12.209-macos-aarch64.tar.gz"
                 :archive :tar.gz
@@ -195,6 +217,8 @@
     @{:name "minimal-racket"
       :kind :runtime
       :version "9.1"
+      :homepage "https://racket-lang.org/"
+      :license "MIT/Apache-2.0"
       :source @{:type :url
                 :url "https://download.racket-lang.org/releases/9.1/installers/racket-minimal-9.1-aarch64-macosx-cs.tgz"
                 :archive :tar.gz
@@ -208,6 +232,8 @@
     @{:name "python"
       :kind :runtime
       :version "3.14.2"
+      :homepage "https://github.com/astral-sh/python-build-standalone"
+      :license "Python-2.0 and bundled upstream licenses"
       :source @{:type :url
                 :url "https://github.com/astral-sh/python-build-standalone/releases/download/20251217/cpython-3.14.2%2B20251217-aarch64-apple-darwin-install_only.tar.gz"
                 :archive :tar.gz
@@ -224,6 +250,8 @@
     @{:name "uv"
       :kind :tool
       :version "0.11.6"
+      :homepage "https://github.com/astral-sh/uv"
+      :license "Apache-2.0/MIT"
       :source @{:type :url
                 :url "https://github.com/astral-sh/uv/releases/download/0.11.6/uv-aarch64-apple-darwin.tar.gz"
                 :archive :tar.gz
@@ -237,6 +265,8 @@
     @{:name "google-chrome"
       :kind :app
       :version "stable"
+      :homepage "https://www.google.com/chrome/"
+      :license "Proprietary"
       :source @{:type :url
                 :url "https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg"
                 :file-name "googlechrome.dmg"
