@@ -28,7 +28,8 @@
       :version "2.89.0"
       :source @{:type :url
                 :url "https://github.com/cli/cli/releases/download/v2.89.0/gh_2.89.0_macOS_arm64.zip"
-                :archive :zip}
+                :archive :zip
+                :sha256 "2423d02ec0a2094898c378703a1b28a5846c08700f87461363857cb8cb3fda94"}
       :build ["mkdir -p \"$PREFIX/bin\""
               "cp gh_*_macOS_arm64/bin/gh \"$PREFIX/bin/gh\""
               "chmod 755 \"$PREFIX/bin/gh\""]
@@ -71,7 +72,8 @@
       :source @{:type :url
                 :url "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-aarch64-apple-darwin.tar.gz"
                 :archive :tar.gz
-                :strip-components 1}
+                :strip-components 1
+                :sha256 "378e973289176ca0c6054054ee7f631a065874a352bf43f0fa60ef079b6ba715"}
       :build ["mkdir -p \"$PREFIX/bin\""
               "cp rg \"$PREFIX/bin/rg\""
               "chmod 755 \"$PREFIX/bin/rg\""]
@@ -84,7 +86,8 @@
       :source @{:type :url
                 :url "https://oldmanprogrammer.net/tar/tree/tree-2.2.1.tgz"
                 :archive :tar.gz
-                :strip-components 1}
+                :strip-components 1
+                :sha256 "68ac45dc78c0c311ada06200ffc3c285e74223ba208061f8d15ffac25e44b2ec"}
       :build ["make"
               "make PREFIX=\"$PREFIX\" MANDIR=\"$PREFIX/share/man\" install"
               "chmod 755 \"$PREFIX/bin/tree\""]
