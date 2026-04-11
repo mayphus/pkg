@@ -326,6 +326,21 @@
   (or (get manifest :apps)
       @[]))
 
+(defn manifest-kind [manifest]
+  (let [has-bins (> (length (manifest-linked-bins manifest)) 0)
+        has-apps (> (length (manifest-apps manifest)) 0)]
+    (if (and has-bins has-apps)
+      "mixed"
+      (if has-apps
+        "app"
+        "bin"))))
+
+(defn manifest-source-type [manifest]
+  (let [source (get manifest :source)]
+    (if source
+      (string (get source :type))
+      "unknown")))
+
 (defn manifest-unlink [manifest]
   (each entry (manifest-linked-bins manifest)
     (let [path (get entry :path)
@@ -580,14 +595,33 @@
           (let [pkg-root (join-path root name)]
             (if (os/stat pkg-root)
               (each version (os/dir pkg-root)
-                (if (read-manifest name version)
-                  (array/push installed (string name "  " version)))))))
+                (let [manifest (read-manifest name version)]
+                  (if manifest
+                    (array/push installed
+                                @{:name name
+                                  :version version
+                                  :kind (manifest-kind manifest)
+                                  :source (manifest-source-type manifest)})))))))
         (if (= 0 (length installed))
           (print "no installed packages")
           (do
             (print "installed packages:")
+            (print "  "
+                   (string/format "%-18s" "name")
+                   "  "
+                   (string/format "%-14s" "version")
+                   "  "
+                   (string/format "%-8s" "kind")
+                   "  source")
             (each item installed
-              (print "  " item)))))
+              (print "  "
+                     (string/format "%-18s" (get item :name))
+                     "  "
+                     (string/format "%-14s" (get item :version))
+                     "  "
+                     (string/format "%-8s" (get item :kind))
+                     "  "
+                     (get item :source))))))
       (print "no installed packages"))))
 
 (defn command-show [name]
