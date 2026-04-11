@@ -33,11 +33,34 @@ def load_config(selected: set[str] | None) -> list[dict]:
     return [item for item in items if item["name"] in selected]
 
 
+def github_releases(repo: str) -> list[dict]:
+    releases = []
+    page = 1
+    while True:
+        batch = github_json(
+            f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}"
+        )
+        if not batch:
+            break
+        releases.extend(batch)
+        if len(batch) < 100:
+            break
+        page += 1
+    return releases
+
+
 def latest_release(rule: dict) -> tuple[str, str, str]:
-    releases = github_json(f"https://api.github.com/repos/{rule['repo']}/releases?per_page=20")
+    releases = github_releases(rule["repo"])
     prefix = rule.get("tag_prefix", "")
+    allow_prerelease = rule.get("allow_prerelease", False)
     data = next(
-        (release for release in releases if release["tag_name"].startswith(prefix)),
+        (
+            release
+            for release in releases
+            if release["tag_name"].startswith(prefix)
+            and not release.get("draft", False)
+            and (allow_prerelease or not release.get("prerelease", False))
+        ),
         None,
     )
     if not data:
