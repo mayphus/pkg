@@ -68,6 +68,9 @@
 (defn self-source-file []
   (join-path (config-dir) "self-source"))
 
+(defn release-repo-file []
+  (join-path (config-dir) "release-repo"))
+
 (defn path-prefix? [prefix path]
   (and prefix
        path
@@ -126,6 +129,14 @@
     "PKG_NAME" (get pkg :name)
     "PKG_VERSION" (get pkg :version)})
 
+(defn package-links [pkg]
+  (or (get pkg :links)
+      (let [links @[]]
+        (each bin-name (get pkg :bins)
+          (array/push links @{:name bin-name
+                              :path (join-path "bin" bin-name)}))
+        links)))
+
 (defn expand-project-path [value]
   (if (or (= "" value)
           (= "/" (string/slice value 0 1)))
@@ -151,6 +162,12 @@
       runtime-root
       recorded)))
 
+(defn configured-release-repo []
+  (or (os/getenv "PKG_RELEASE_REPO")
+      (if (os/stat (release-repo-file))
+        (string/trim (slurp (release-repo-file)))
+        nil)))
+
 (defn current-link-target [path]
   (if (os/stat path)
     (os/readlink path)
@@ -165,6 +182,29 @@
   (if (os/stat dest)
     (run ["/bin/rm" "-f" dest]))
   (run ["/bin/cp" source dest]))
+
+(defn ensure-sha256 [archive-path expected]
+  (if expected
+    (let [output (string/trim (os/shell (string "/usr/bin/shasum -a 256 " archive-path)))
+          actual (first (string/split " " output))]
+      (if (not (= actual expected))
+        (fail (string "sha256 mismatch for " archive-path ": expected " expected ", got " actual))))))
+
+(defn source-url [source]
+  (case (get source :type)
+    :url (get source :url)
+    :github-release
+    (let [repo (or (get source :repo)
+                   (configured-release-repo))]
+      (if repo
+        (string "https://github.com/" repo "/releases/download/" (get source :tag) "/" (get source :file))
+        (fail "no release repo configured; set PKG_RELEASE_REPO or ~/.config/pkg/release-repo")))
+    (fail (string "source type has no downloadable URL: " (get source :type)))))
+
+(defn source-file-name [source]
+  (or (get source :file-name)
+      (get source :file)
+      (basename (source-url source))))
 
 (defn install-self-files [source-root]
   (let [resolved (expand-project-path source-root)
@@ -193,23 +233,38 @@
       (join-path (expand-project-path (get source :path)) bin-name)
       (join-path (package-install-dir pkg) "bin" bin-name))))
 
+(defn link-target [pkg link]
+  (let [source (get pkg :source)
+        path (get link :path)]
+    (if (= :link (get source :type))
+      (join-path (expand-project-path (get source :path)) path)
+      (join-path (package-install-dir pkg) path))))
+
 (defn manifest-source-data [source]
   (var out @{:type (get source :type)})
   (if (get source :url)
     (put out :url (get source :url)))
+  (if (get source :repo)
+    (put out :repo (get source :repo)))
+  (if (get source :tag)
+    (put out :tag (get source :tag)))
+  (if (get source :file)
+    (put out :file (get source :file)))
   (if (get source :path)
     (put out :path (get source :path)))
   (if (get source :ref)
     (put out :ref (get source :ref)))
+  (if (get source :sha256)
+    (put out :sha256 (get source :sha256)))
   out)
 
 (defn write-manifest [pkg]
   (let [linked @[]
         source (get pkg :source)]
-    (each bin-name (get pkg :bins)
-      (array/push linked @{:name bin-name
-                           :path (join-path (bin-dir) bin-name)
-                           :target (expected-bin-target pkg bin-name)}))
+    (each link (package-links pkg)
+      (array/push linked @{:name (get link :name)
+                           :path (join-path (bin-dir) (get link :name))
+                           :target (link-target pkg link)}))
     (run ["/bin/mkdir" "-p" (package-manifest-dir pkg)])
     (spit (package-manifest-file pkg)
           (string
@@ -264,34 +319,35 @@
           (fail (string "refusing to replace unmanaged link: " dest " -> " current-target)))
         (fail (string "refusing to replace non-symlink path: " dest))))))
 
-(defn link-installed-bin [target link-name]
-  (let [dest (join-path (bin-dir) link-name)]
-    (safe-unlink-bin @{:name link-name
-                       :version ""
-                       :source @{:type :link
-                                 :path ""}
-                       :bins [link-name]}
-                     link-name)
-    (run ["/bin/ln" "-s" target dest])
-    (print "linked " link-name " -> " target)))
+(defn safe-unlink-link [pkg link]
+  (let [dest (join-path (bin-dir) (get link :name))
+        current-target (current-link-target dest)
+        expected-target (link-target pkg link)]
+    (if (os/stat dest)
+      (if current-target
+        (if (or (= current-target expected-target)
+                (managed-link-target? current-target))
+          (run ["/bin/rm" "-f" dest])
+          (fail (string "refusing to replace unmanaged link: " dest " -> " current-target)))
+        (fail (string "refusing to replace non-symlink path: " dest))))))
 
-(defn link-package-bins [pkg]
-  (let [prefix (package-install-dir pkg)]
-    (each bin-name (get pkg :bins)
-      (link-installed-bin
-        (join-path prefix "bin" bin-name)
-        bin-name))))
+(defn link-exposed-path [pkg link]
+  (let [dest (join-path (bin-dir) (get link :name))]
+    (safe-unlink-link pkg link)
+    (let [target (link-target pkg link)]
+      (run ["/bin/ln" "-s" target dest])
+      (print "linked " (get link :name) " -> " target))))
+
+(defn link-package-exposed [pkg]
+  (each link (package-links pkg)
+    (link-exposed-path pkg link)))
 
 (defn link-local-package [pkg]
-  (let [source (get pkg :source)
-        root (expand-project-path (get source :path))]
+  (let [source (get pkg :source)]
     (run ["/bin/mkdir" "-p" (package-install-dir pkg)])
     (spit (join-path (package-install-dir pkg) ".pkg-link-source")
-          (string root "\n"))
-    (each bin-name (get pkg :bins)
-      (link-installed-bin
-        (join-path root bin-name)
-        bin-name))))
+          (string (expand-project-path (get source :path)) "\n"))
+    (link-package-exposed pkg)))
 
 (defn reset-build-dir [pkg]
   (let [work (package-build-dir pkg)]
@@ -301,12 +357,13 @@
 
 (defn fetch-url-source [pkg]
   (let [source (get pkg :source)
-        archive-name (or (get source :file-name)
-                         (basename (get source :url)))
+        archive-url (source-url source)
+        archive-name (source-file-name source)
         archive-path (join-path (cache-dir) archive-name)
         src-dir (package-source-dir pkg)
         strip-components (or (get source :strip-components) 0)]
-    (run ["/usr/bin/curl" "-L" (get source :url) "-o" archive-path])
+    (run ["/usr/bin/curl" "-L" archive-url "-o" archive-path])
+    (ensure-sha256 archive-path (get source :sha256))
     (run ["/bin/mkdir" "-p" src-dir])
     (case (get source :archive)
       :tar.gz (run ["/usr/bin/tar" "-xzf" archive-path "-C" src-dir "--strip-components" (string strip-components)])
@@ -345,10 +402,11 @@
         (reset-build-dir pkg)
         (case (get source :type)
           :url (fetch-url-source pkg)
+          :github-release (fetch-url-source pkg)
           :git (fetch-git-source pkg)
           (fail (string "unsupported source type: " (get source :type))))
         (run-build-steps pkg)
-        (link-package-bins pkg)
+        (link-package-exposed pkg)
         (write-manifest pkg)
         (print "installed " name " -> " target)))))
 
@@ -360,8 +418,8 @@
         manifest (read-manifest name version)]
     (if manifest
       (manifest-unlink manifest)
-      (each bin-name (get pkg :bins)
-        (safe-unlink-bin pkg bin-name)))
+      (each link (package-links pkg)
+        (safe-unlink-link pkg link)))
     (if (os/stat target)
       (run ["/bin/rm" "-rf" target]))
     (let [package-root-dir (join-path (opt-dir) name)]
@@ -412,6 +470,11 @@
     (print "source:  " (get (get pkg :source) :type))
     (if (get (get pkg :source) :url)
       (print "url:     " (get (get pkg :source) :url)))
+    (if (= :github-release (get (get pkg :source) :type))
+      (if (or (get (get pkg :source) :repo)
+              (configured-release-repo))
+        (print "url:     " (source-url (get pkg :source)))
+        (print "url:     " "<configure PKG_RELEASE_REPO or ~/.config/pkg/release-repo>")))
     (if (get (get pkg :source) :path)
       (print "path:    " (get (get pkg :source) :path)))
     (print "bins:    " (string/join (get pkg :bins) ", "))
@@ -425,6 +488,8 @@
   (print "opt:        " (opt-dir))
   (print "share:      " (share-dir))
   (print "config:     " (config-dir))
+  (if (configured-release-repo)
+    (print "releases:   " (configured-release-repo)))
   (print "")
   (print "make sure this is on PATH:")
   (print "  " (bin-dir)))

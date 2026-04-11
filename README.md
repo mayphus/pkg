@@ -19,6 +19,7 @@ This layout keeps binaries in one place and package payloads versioned under `op
 
 - `:link` packages for local scripts and tools
 - `:url` packages for release archives
+- `:github-release` packages for repo-hosted release artifacts
 - `:git` packages for source builds
 - shell-based build recipes with `PREFIX`, `SRC_DIR`, `BUILD_DIR`, `PKG_NAME`, and `PKG_VERSION`
 
@@ -63,6 +64,15 @@ The installer does three things:
 
 After that, `pkg` should work directly from your shell as long as `~/.local/bin` is on `PATH`.
 
+If you want `pkg` to install artifacts from this repo's GitHub Releases, configure the repo slug once:
+
+```sh
+mkdir -p ~/.config/pkg
+printf '%s\n' 'OWNER/REPO' > ~/.config/pkg/release-repo
+```
+
+Or set `PKG_RELEASE_REPO=OWNER/REPO` in your shell environment.
+
 ## First smoke test
 
 Use the local link package first. It exercises the registry lookup, symlink creation, and removal flow without depending on network or compilation.
@@ -83,6 +93,29 @@ pkg upgrade pkg
 ```
 
 This currently upgrades `pkg` from the checkout path recorded by `install.sh` when the installer is run from a git checkout. If `install.sh` is run standalone without a checkout, `pkg upgrade pkg` will not have a source tree to copy from yet.
+
+## GitHub Artifacts
+
+Large packages can be built in GitHub Actions and installed as repo-hosted release artifacts.
+
+The intended artifact shape is a prefix payload archive:
+
+- `bin/...`
+- `share/...`
+- `Applications/...` when needed for app bundles
+
+The package recipe then downloads the release archive and copies that staged prefix tree into `~/.local/opt/<name>/<version>`.
+
+This repo includes:
+
+- [scripts/build-emacs-artifact.sh](/Users/mayphus/workspace/pkg/scripts/build-emacs-artifact.sh): builds a macOS arm64 Emacs artifact in prefix layout
+- [.github/workflows/build-emacs.yml](/Users/mayphus/workspace/pkg/.github/workflows/build-emacs.yml): workflow-dispatch build and release upload for Emacs
+
+Once a release asset exists and `PKG_RELEASE_REPO` is configured, Emacs can be installed with:
+
+```sh
+pkg install emacs
+```
 
 ## Registry shape
 

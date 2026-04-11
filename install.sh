@@ -12,6 +12,7 @@ LIB_DIR="${PREFIX}/lib"
 PKG_LIB_DIR="${PREFIX}/share/pkg/lib"
 CONFIG_DIR="${HOME}/.config/pkg"
 SELF_SOURCE_FILE="${CONFIG_DIR}/self-source"
+RELEASE_REPO_FILE="${CONFIG_DIR}/release-repo"
 
 JANET_VERSION="${JANET_VERSION:-1.41.2}"
 TARGET_PREFIX="${PREFIX}/opt/janet/${JANET_VERSION}"
@@ -94,8 +95,9 @@ bootstrap_janet() {
 }
 
 write_pkg_wrapper() {
+  mkdir -p "${BIN_DIR}"
   rm -f "${BIN_DIR}/pkg"
-  cat > "${BIN_DIR}/pkg" <<'EOF'
+  cat > "${BIN_DIR}/pkg" <<'EOF_PKG_WRAPPER'
 #!/bin/sh
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
@@ -115,14 +117,14 @@ if [ -x "$JANET_BIN" ]; then
   exec "$JANET_BIN" "$ROOT/pkg.janet" "$@"
 fi
 exec janet "$ROOT/pkg.janet" "$@"
-EOF
+EOF_PKG_WRAPPER
   chmod 755 "${BIN_DIR}/pkg"
 }
 
 write_pkg_cli() {
   mkdir -p "${PKG_LIB_DIR}" "${CONFIG_DIR}"
   rm -f "${PKG_LIB_DIR}/pkg.janet"
-  cat > "${PKG_LIB_DIR}/pkg.janet" <<'EOF'
+  cat > "${PKG_LIB_DIR}/pkg.janet" <<'EOF_PKG_CLI'
 #!/usr/bin/env janet
 
 (import ./packages :as reg)
@@ -184,11 +186,17 @@ write_pkg_cli() {
 (defn lib-dir []
   (join-path (share-dir) "lib"))
 
+(defn installed-dir []
+  (join-path (share-dir) "installed"))
+
 (defn build-root []
   (join-path (share-dir) "build"))
 
 (defn self-source-file []
   (join-path (config-dir) "self-source"))
+
+(defn release-repo-file []
+  (join-path (config-dir) "release-repo"))
 
 (defn path-prefix? [prefix path]
   (and prefix
@@ -222,6 +230,7 @@ write_pkg_cli() {
         (opt-dir)
         (cache-dir)
         (lib-dir)
+        (installed-dir)
         (build-root)
         (config-dir)]))
 
@@ -234,12 +243,26 @@ write_pkg_cli() {
 (defn package-source-dir [pkg]
   (join-path (package-build-dir pkg) "src"))
 
+(defn package-manifest-dir [pkg]
+  (join-path (installed-dir) (get pkg :name) (get pkg :version)))
+
+(defn package-manifest-file [pkg]
+  (join-path (package-manifest-dir pkg) "manifest.jdn"))
+
 (defn package-env [pkg]
   @{"PREFIX" (package-install-dir pkg)
     "SRC_DIR" (package-source-dir pkg)
     "BUILD_DIR" (package-source-dir pkg)
     "PKG_NAME" (get pkg :name)
     "PKG_VERSION" (get pkg :version)})
+
+(defn package-links [pkg]
+  (or (get pkg :links)
+      (let [links @[]]
+        (each bin-name (get pkg :bins)
+          (array/push links @{:name bin-name
+                              :path (join-path "bin" bin-name)}))
+        links)))
 
 (defn expand-project-path [value]
   (if (or (= "" value)
@@ -253,6 +276,10 @@ write_pkg_cli() {
       pkg
       (fail (string "unknown package: " name)))))
 
+(defn manifest-pkg [name version]
+  @{:name name
+    :version version})
+
 (defn self-source-root []
   (let [runtime-root (project-root)
         recorded (if (os/stat (self-source-file))
@@ -261,6 +288,12 @@ write_pkg_cli() {
     (if (os/stat (join-path runtime-root ".git"))
       runtime-root
       recorded)))
+
+(defn configured-release-repo []
+  (or (os/getenv "PKG_RELEASE_REPO")
+      (if (os/stat (release-repo-file))
+        (string/trim (slurp (release-repo-file)))
+        nil)))
 
 (defn current-link-target [path]
   (if (os/stat path)
@@ -276,6 +309,29 @@ write_pkg_cli() {
   (if (os/stat dest)
     (run ["/bin/rm" "-f" dest]))
   (run ["/bin/cp" source dest]))
+
+(defn ensure-sha256 [archive-path expected]
+  (if expected
+    (let [output (string/trim (os/shell (string "/usr/bin/shasum -a 256 " archive-path)))
+          actual (first (string/split " " output))]
+      (if (not (= actual expected))
+        (fail (string "sha256 mismatch for " archive-path ": expected " expected ", got " actual))))))
+
+(defn source-url [source]
+  (case (get source :type)
+    :url (get source :url)
+    :github-release
+    (let [repo (or (get source :repo)
+                   (configured-release-repo))]
+      (if repo
+        (string "https://github.com/" repo "/releases/download/" (get source :tag) "/" (get source :file))
+        (fail "no release repo configured; set PKG_RELEASE_REPO or ~/.config/pkg/release-repo")))
+    (fail (string "source type has no downloadable URL: " (get source :type)))))
+
+(defn source-file-name [source]
+  (or (get source :file-name)
+      (get source :file)
+      (basename (source-url source))))
 
 (defn install-self-files [source-root]
   (let [resolved (expand-project-path source-root)
@@ -304,6 +360,80 @@ write_pkg_cli() {
       (join-path (expand-project-path (get source :path)) bin-name)
       (join-path (package-install-dir pkg) "bin" bin-name))))
 
+(defn link-target [pkg link]
+  (let [source (get pkg :source)
+        path (get link :path)]
+    (if (= :link (get source :type))
+      (join-path (expand-project-path (get source :path)) path)
+      (join-path (package-install-dir pkg) path))))
+
+(defn manifest-source-data [source]
+  (var out @{:type (get source :type)})
+  (if (get source :url)
+    (put out :url (get source :url)))
+  (if (get source :repo)
+    (put out :repo (get source :repo)))
+  (if (get source :tag)
+    (put out :tag (get source :tag)))
+  (if (get source :file)
+    (put out :file (get source :file)))
+  (if (get source :path)
+    (put out :path (get source :path)))
+  (if (get source :ref)
+    (put out :ref (get source :ref)))
+  (if (get source :sha256)
+    (put out :sha256 (get source :sha256)))
+  out)
+
+(defn write-manifest [pkg]
+  (let [linked @[]
+        source (get pkg :source)]
+    (each link (package-links pkg)
+      (array/push linked @{:name (get link :name)
+                           :path (join-path (bin-dir) (get link :name))
+                           :target (link-target pkg link)}))
+    (run ["/bin/mkdir" "-p" (package-manifest-dir pkg)])
+    (spit (package-manifest-file pkg)
+          (string
+            (string/format "%q"
+              @{:name (get pkg :name)
+                :version (get pkg :version)
+                :prefix (package-install-dir pkg)
+                :bins (get pkg :bins)
+                :linked linked
+                :source (manifest-source-data source)})
+            "\n"))))
+
+(defn read-manifest [name version]
+  (let [path (package-manifest-file (manifest-pkg name version))]
+    (if (os/stat path)
+      (parse (slurp path))
+      nil)))
+
+(defn remove-empty-dir [path]
+  (if (and (os/stat path)
+           (= 0 (length (os/dir path))))
+    (run ["/bin/rm" "-rf" path])))
+
+(defn manifest-linked-bins [manifest]
+  (or (get manifest :linked)
+      @[]))
+
+(defn manifest-unlink [manifest]
+  (each entry (manifest-linked-bins manifest)
+    (let [path (get entry :path)
+          target (get entry :target)
+          current (current-link-target path)]
+      (if (and current (= current target))
+        (run ["/bin/rm" "-f" path])))))
+
+(defn remove-manifest [name version]
+  (let [manifest-dir (package-manifest-dir (manifest-pkg name version))
+        package-dir (join-path (installed-dir) name)]
+    (if (os/stat manifest-dir)
+      (run ["/bin/rm" "-rf" manifest-dir]))
+    (remove-empty-dir package-dir)))
+
 (defn safe-unlink-bin [pkg bin-name]
   (let [dest (join-path (bin-dir) bin-name)
         current-target (current-link-target dest)
@@ -316,34 +446,35 @@ write_pkg_cli() {
           (fail (string "refusing to replace unmanaged link: " dest " -> " current-target)))
         (fail (string "refusing to replace non-symlink path: " dest))))))
 
-(defn link-installed-bin [target link-name]
-  (let [dest (join-path (bin-dir) link-name)]
-    (safe-unlink-bin @{:name link-name
-                       :version ""
-                       :source @{:type :link
-                                 :path ""}
-                       :bins [link-name]}
-                     link-name)
-    (run ["/bin/ln" "-s" target dest])
-    (print "linked " link-name " -> " target)))
+(defn safe-unlink-link [pkg link]
+  (let [dest (join-path (bin-dir) (get link :name))
+        current-target (current-link-target dest)
+        expected-target (link-target pkg link)]
+    (if (os/stat dest)
+      (if current-target
+        (if (or (= current-target expected-target)
+                (managed-link-target? current-target))
+          (run ["/bin/rm" "-f" dest])
+          (fail (string "refusing to replace unmanaged link: " dest " -> " current-target)))
+        (fail (string "refusing to replace non-symlink path: " dest))))))
 
-(defn link-package-bins [pkg]
-  (let [prefix (package-install-dir pkg)]
-    (each bin-name (get pkg :bins)
-      (link-installed-bin
-        (join-path prefix "bin" bin-name)
-        bin-name))))
+(defn link-exposed-path [pkg link]
+  (let [dest (join-path (bin-dir) (get link :name))]
+    (safe-unlink-link pkg link)
+    (let [target (link-target pkg link)]
+      (run ["/bin/ln" "-s" target dest])
+      (print "linked " (get link :name) " -> " target))))
+
+(defn link-package-exposed [pkg]
+  (each link (package-links pkg)
+    (link-exposed-path pkg link)))
 
 (defn link-local-package [pkg]
-  (let [source (get pkg :source)
-        root (expand-project-path (get source :path))]
+  (let [source (get pkg :source)]
     (run ["/bin/mkdir" "-p" (package-install-dir pkg)])
     (spit (join-path (package-install-dir pkg) ".pkg-link-source")
-          (string root "\n"))
-    (each bin-name (get pkg :bins)
-      (link-installed-bin
-        (join-path root bin-name)
-        bin-name))))
+          (string (expand-project-path (get source :path)) "\n"))
+    (link-package-exposed pkg)))
 
 (defn reset-build-dir [pkg]
   (let [work (package-build-dir pkg)]
@@ -353,12 +484,13 @@ write_pkg_cli() {
 
 (defn fetch-url-source [pkg]
   (let [source (get pkg :source)
-        archive-name (or (get source :file-name)
-                         (basename (get source :url)))
+        archive-url (source-url source)
+        archive-name (source-file-name source)
         archive-path (join-path (cache-dir) archive-name)
         src-dir (package-source-dir pkg)
         strip-components (or (get source :strip-components) 0)]
-    (run ["/usr/bin/curl" "-L" (get source :url) "-o" archive-path])
+    (run ["/usr/bin/curl" "-L" archive-url "-o" archive-path])
+    (ensure-sha256 archive-path (get source :sha256))
     (run ["/bin/mkdir" "-p" src-dir])
     (case (get source :archive)
       :tar.gz (run ["/usr/bin/tar" "-xzf" archive-path "-C" src-dir "--strip-components" (string strip-components)])
@@ -389,6 +521,7 @@ write_pkg_cli() {
         (if (os/stat target)
           (fail (string "already installed at " target)))
         (link-local-package pkg)
+        (write-manifest pkg)
         (print "installed " name " (link)"))
       (do
         (if (os/stat target)
@@ -396,24 +529,29 @@ write_pkg_cli() {
         (reset-build-dir pkg)
         (case (get source :type)
           :url (fetch-url-source pkg)
+          :github-release (fetch-url-source pkg)
           :git (fetch-git-source pkg)
           (fail (string "unsupported source type: " (get source :type))))
         (run-build-steps pkg)
-        (link-package-bins pkg)
+        (link-package-exposed pkg)
+        (write-manifest pkg)
         (print "installed " name " -> " target)))))
 
 (defn remove-package [name]
   (ensure-layout)
   (let [pkg (package-by-name name)
-        target (package-install-dir pkg)]
-    (each bin-name (get pkg :bins)
-      (safe-unlink-bin pkg bin-name))
+        version (get pkg :version)
+        target (package-install-dir pkg)
+        manifest (read-manifest name version)]
+    (if manifest
+      (manifest-unlink manifest)
+      (each link (package-links pkg)
+        (safe-unlink-link pkg link)))
     (if (os/stat target)
       (run ["/bin/rm" "-rf" target]))
     (let [package-root-dir (join-path (opt-dir) name)]
-      (if (and (os/stat package-root-dir)
-               (= 0 (length (os/dir package-root-dir))))
-        (run ["/bin/rm" "-rf" package-root-dir])))
+      (remove-empty-dir package-root-dir))
+    (remove-manifest name version)
     (print "removed " name)))
 
 (defn upgrade-package [name]
@@ -434,7 +572,7 @@ write_pkg_cli() {
       (print "  " name "  " (get pkg :version)))))
 
 (defn command-installed []
-  (let [root (opt-dir)]
+  (let [root (installed-dir)]
     (if (os/stat root)
       (let [entries (os/dir root)
             installed @[]]
@@ -442,7 +580,8 @@ write_pkg_cli() {
           (let [pkg-root (join-path root name)]
             (if (os/stat pkg-root)
               (each version (os/dir pkg-root)
-                (array/push installed (string name "  " version))))))
+                (if (read-manifest name version)
+                  (array/push installed (string name "  " version)))))))
         (if (= 0 (length installed))
           (print "no installed packages")
           (do
@@ -458,6 +597,11 @@ write_pkg_cli() {
     (print "source:  " (get (get pkg :source) :type))
     (if (get (get pkg :source) :url)
       (print "url:     " (get (get pkg :source) :url)))
+    (if (= :github-release (get (get pkg :source) :type))
+      (if (or (get (get pkg :source) :repo)
+              (configured-release-repo))
+        (print "url:     " (source-url (get pkg :source)))
+        (print "url:     " "<configure PKG_RELEASE_REPO or ~/.config/pkg/release-repo>")))
     (if (get (get pkg :source) :path)
       (print "path:    " (get (get pkg :source) :path)))
     (print "bins:    " (string/join (get pkg :bins) ", "))
@@ -471,6 +615,8 @@ write_pkg_cli() {
   (print "opt:        " (opt-dir))
   (print "share:      " (share-dir))
   (print "config:     " (config-dir))
+  (if (configured-release-repo)
+    (print "releases:   " (configured-release-repo)))
   (print "")
   (print "make sure this is on PATH:")
   (print "  " (bin-dir)))
@@ -513,13 +659,13 @@ write_pkg_cli() {
                 (if (= command "doctor")
                   (command-doctor)
                   (usage))))))))))
-EOF
+EOF_PKG_CLI
 }
 
 write_pkg_registry() {
   mkdir -p "${PKG_LIB_DIR}"
   rm -f "${PKG_LIB_DIR}/packages.janet"
-  cat > "${PKG_LIB_DIR}/packages.janet" <<'EOF'
+  cat > "${PKG_LIB_DIR}/packages.janet" <<'EOF_PKG_REGISTRY'
 (def packages
   @{"hello-local"
     @{:name "hello-local"
@@ -543,10 +689,60 @@ write_pkg_registry() {
               "PREFIX=\"$PREFIX\" JANET_MANPATH=\"$PREFIX/share/man/man1\" JANET_HEADERPATH=\"$PREFIX/include/janet\" JANET_BINPATH=\"$PREFIX/bin\" JANET_LIBPATH=\"$PREFIX/lib\" JANET_MODPATH=\"$PREFIX/lib/janet\" ./build/janet -e '(import ./build/jpm/jpm/make-config :as mc) (spit \"./build/jpm-local-config.janet\" (mc/generate-config nil true))'"
               "cd build/jpm && PREFIX=\"$PREFIX\" JANET_MANPATH=\"$PREFIX/share/man/man1\" JANET_HEADERPATH=\"$PREFIX/include/janet\" JANET_BINPATH=\"$PREFIX/bin\" JANET_LIBPATH=\"$PREFIX/lib\" JANET_MODPATH=\"$PREFIX/lib/janet\" ../../build/janet ./bootstrap.janet ../jpm-local-config.janet"]
       :bins ["janet" "jpm"]
-      :notes "Builds Janet and bootstraps jpm entirely inside the package prefix."}})
+      :notes "Builds Janet and bootstraps jpm entirely inside the package prefix."}
+
+    "gh"
+    @{:name "gh"
+      :version "2.89.0"
+      :source @{:type :url
+                :url "https://github.com/cli/cli/releases/download/v2.89.0/gh_2.89.0_macOS_arm64.zip"
+                :archive :zip}
+      :build ["mkdir -p \"$PREFIX/bin\""
+              "cp gh_*_macOS_arm64/bin/gh \"$PREFIX/bin/gh\""
+              "chmod 755 \"$PREFIX/bin/gh\""]
+      :bins ["gh"]
+      :notes "Installs the prebuilt GitHub CLI macOS arm64 release archive."}
+
+    "ripgrep"
+    @{:name "ripgrep"
+      :version "15.1.0"
+      :source @{:type :url
+                :url "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-aarch64-apple-darwin.tar.gz"
+                :archive :tar.gz
+                :strip-components 1}
+      :build ["mkdir -p \"$PREFIX/bin\""
+              "cp rg \"$PREFIX/bin/rg\""
+              "chmod 755 \"$PREFIX/bin/rg\""]
+      :bins ["rg"]
+      :notes "Installs the prebuilt ripgrep macOS arm64 release archive."}
+
+    "tree"
+    @{:name "tree"
+      :version "2.2.1"
+      :source @{:type :url
+                :url "https://oldmanprogrammer.net/tar/tree/tree-2.2.1.tgz"
+                :archive :tar.gz
+                :strip-components 1}
+      :build ["make"
+              "make PREFIX=\"$PREFIX\" MANDIR=\"$PREFIX/share/man\" install"
+              "chmod 755 \"$PREFIX/bin/tree\""]
+      :bins ["tree"]
+      :notes "Builds the upstream tree source release into the package prefix."}
+
+    "emacs"
+    @{:name "emacs"
+      :version "30.1"
+      :source @{:type :github-release
+                :tag "emacs-30.1"
+                :file "emacs-30.1-macos-arm64-prefix.tar.gz"
+                :archive :tar.gz}
+      :build ["mkdir -p \"$PREFIX\""
+              "tar -cf - . | tar -xf - -C \"$PREFIX\""]
+      :bins ["emacs" "emacsclient" "etags" "ctags"]
+      :notes "Installs the repo-built Emacs macOS arm64 artifact from GitHub Releases."}})
 
 packages
-EOF
+EOF_PKG_REGISTRY
 }
 
 install_pkg() {
@@ -557,6 +753,10 @@ install_pkg() {
 
   if [ -n "${SCRIPT_DIR}" ] && [ -d "${SCRIPT_DIR}/.git" ]; then
     printf '%s\n' "${SCRIPT_DIR}" > "${SELF_SOURCE_FILE}"
+  fi
+
+  if [ -n "${PKG_RELEASE_REPO:-}" ]; then
+    printf '%s\n' "${PKG_RELEASE_REPO}" > "${RELEASE_REPO_FILE}"
   fi
 }
 
