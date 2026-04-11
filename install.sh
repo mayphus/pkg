@@ -470,6 +470,13 @@ write_pkg_cli() {
       (parse (slurp path))
       nil)))
 
+(defn installed-package-versions [name]
+  (let [pkg-root (join-path (installed-dir) name)]
+    (if (os/stat pkg-root)
+      (filter (fn [version] (read-manifest name version))
+              (os/dir pkg-root))
+      @[])))
+
 (defn remove-empty-dir [path]
   (if (and (os/stat path)
            (= 0 (length (os/dir path))))
@@ -617,6 +624,9 @@ write_pkg_cli() {
   (let [pkg (package-by-name name)]
     (not (= nil (read-manifest name (get pkg :version))))))
 
+(defn installed-any-version? [name]
+  (> (length (installed-package-versions name)) 0))
+
 (defn ensure-package-dependencies [pkg]
   (let [missing @[]]
     (each dep-name (package-depends pkg)
@@ -675,22 +685,25 @@ write_pkg_cli() {
         (write-manifest pkg)
         (print "installed " name " -> " target)))))
 
-(defn remove-package [name]
+(defn remove-installed-version [name version]
   (ensure-layout)
-  (let [pkg (package-by-name name)
-        version (get pkg :version)
-        target (package-install-dir pkg)
+  (let [target (package-install-dir (manifest-pkg name version))
         manifest (read-manifest name version)]
     (if manifest
       (manifest-unlink manifest)
-      (each link (package-links pkg)
-        (safe-unlink-link pkg link)))
+      (fail (string "package version is not installed: " name " " version)))
     (if (os/stat target)
       (run ["/bin/rm" "-rf" target]))
     (let [package-root-dir (join-path (opt-dir) name)]
       (remove-empty-dir package-root-dir))
     (remove-manifest name version)
-    (print "removed " name)))
+    (remove-empty-dir (join-path (installed-dir) name))
+    (print "removed " name " " version)))
+
+(defn remove-package [name]
+  (let [pkg (package-by-name name)
+        version (get pkg :version)]
+    (remove-installed-version name version)))
 
 (defn upgrade-package [name]
   (if (= name "pkg")
@@ -702,12 +715,21 @@ write_pkg_cli() {
           (print "upgraded pkg from " source-root))
         (fail "no pkg source checkout recorded; rerun install.sh from a checkout")))
     (let [pkg (package-by-name name)
-          version (get pkg :version)]
+          version (get pkg :version)
+          installed-versions (installed-package-versions name)]
       (if (read-manifest name version)
         (do
           (remove-package name)
           (install-package name))
-        (fail (string "package is not installed at registry version " version ": " name))))))
+        (if (= 0 (length installed-versions))
+          (fail (string "package is not installed: " name))
+          (if (> (length installed-versions) 1)
+            (fail (string "multiple installed versions for " name ": "
+                          (string/join installed-versions ", ")
+                          " (remove one or use reinstall)"))
+            (do
+              (remove-installed-version name (get installed-versions 0))
+              (install-package name))))))))
 
 (defn reinstall-package [name]
   (let [pkg (package-by-name name)
