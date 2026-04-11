@@ -487,7 +487,13 @@
           (install-self-files source-root)
           (print "upgraded pkg from " source-root))
         (fail "no pkg source checkout recorded; rerun install.sh from a checkout")))
-    (fail (string "upgrade is only implemented for pkg; use install for " name))))
+    (let [pkg (package-by-name name)
+          version (get pkg :version)]
+      (if (read-manifest name version)
+        (do
+          (remove-package name)
+          (install-package name))
+        (fail (string "package is not installed at registry version " version ": " name))))))
 
 (defn reinstall-package [name]
   (let [pkg (package-by-name name)
