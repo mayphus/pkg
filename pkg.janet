@@ -59,6 +59,9 @@
 (defn lib-dir []
   (join-path (share-dir) "lib"))
 
+(defn installed-dir []
+  (join-path (share-dir) "installed"))
+
 (defn build-root []
   (join-path (share-dir) "build"))
 
@@ -97,6 +100,7 @@
         (opt-dir)
         (cache-dir)
         (lib-dir)
+        (installed-dir)
         (build-root)
         (config-dir)]))
 
@@ -108,6 +112,12 @@
 
 (defn package-source-dir [pkg]
   (join-path (package-build-dir pkg) "src"))
+
+(defn package-manifest-dir [pkg]
+  (join-path (installed-dir) (get pkg :name) (get pkg :version)))
+
+(defn package-manifest-file [pkg]
+  (join-path (package-manifest-dir pkg) "manifest.jdn"))
 
 (defn package-env [pkg]
   @{"PREFIX" (package-install-dir pkg)
@@ -127,6 +137,10 @@
     (if pkg
       pkg
       (fail (string "unknown package: " name)))))
+
+(defn manifest-pkg [name version]
+  @{:name name
+    :version version})
 
 (defn self-source-root []
   (let [runtime-root (project-root)
@@ -178,6 +192,65 @@
     (if (= :link (get source :type))
       (join-path (expand-project-path (get source :path)) bin-name)
       (join-path (package-install-dir pkg) "bin" bin-name))))
+
+(defn manifest-source-data [source]
+  (var out @{:type (get source :type)})
+  (if (get source :url)
+    (put out :url (get source :url)))
+  (if (get source :path)
+    (put out :path (get source :path)))
+  (if (get source :ref)
+    (put out :ref (get source :ref)))
+  out)
+
+(defn write-manifest [pkg]
+  (let [linked @[]
+        source (get pkg :source)]
+    (each bin-name (get pkg :bins)
+      (array/push linked @{:name bin-name
+                           :path (join-path (bin-dir) bin-name)
+                           :target (expected-bin-target pkg bin-name)}))
+    (run ["/bin/mkdir" "-p" (package-manifest-dir pkg)])
+    (spit (package-manifest-file pkg)
+          (string
+            (string/format "%q"
+              @{:name (get pkg :name)
+                :version (get pkg :version)
+                :prefix (package-install-dir pkg)
+                :bins (get pkg :bins)
+                :linked linked
+                :source (manifest-source-data source)})
+            "\n"))))
+
+(defn read-manifest [name version]
+  (let [path (package-manifest-file (manifest-pkg name version))]
+    (if (os/stat path)
+      (parse (slurp path))
+      nil)))
+
+(defn remove-empty-dir [path]
+  (if (and (os/stat path)
+           (= 0 (length (os/dir path))))
+    (run ["/bin/rm" "-rf" path])))
+
+(defn manifest-linked-bins [manifest]
+  (or (get manifest :linked)
+      @[]))
+
+(defn manifest-unlink [manifest]
+  (each entry (manifest-linked-bins manifest)
+    (let [path (get entry :path)
+          target (get entry :target)
+          current (current-link-target path)]
+      (if (and current (= current target))
+        (run ["/bin/rm" "-f" path])))))
+
+(defn remove-manifest [name version]
+  (let [manifest-dir (package-manifest-dir (manifest-pkg name version))
+        package-dir (join-path (installed-dir) name)]
+    (if (os/stat manifest-dir)
+      (run ["/bin/rm" "-rf" manifest-dir]))
+    (remove-empty-dir package-dir)))
 
 (defn safe-unlink-bin [pkg bin-name]
   (let [dest (join-path (bin-dir) bin-name)
@@ -264,6 +337,7 @@
         (if (os/stat target)
           (fail (string "already installed at " target)))
         (link-local-package pkg)
+        (write-manifest pkg)
         (print "installed " name " (link)"))
       (do
         (if (os/stat target)
@@ -275,20 +349,24 @@
           (fail (string "unsupported source type: " (get source :type))))
         (run-build-steps pkg)
         (link-package-bins pkg)
+        (write-manifest pkg)
         (print "installed " name " -> " target)))))
 
 (defn remove-package [name]
   (ensure-layout)
   (let [pkg (package-by-name name)
-        target (package-install-dir pkg)]
-    (each bin-name (get pkg :bins)
-      (safe-unlink-bin pkg bin-name))
+        version (get pkg :version)
+        target (package-install-dir pkg)
+        manifest (read-manifest name version)]
+    (if manifest
+      (manifest-unlink manifest)
+      (each bin-name (get pkg :bins)
+        (safe-unlink-bin pkg bin-name)))
     (if (os/stat target)
       (run ["/bin/rm" "-rf" target]))
     (let [package-root-dir (join-path (opt-dir) name)]
-      (if (and (os/stat package-root-dir)
-               (= 0 (length (os/dir package-root-dir))))
-        (run ["/bin/rm" "-rf" package-root-dir])))
+      (remove-empty-dir package-root-dir))
+    (remove-manifest name version)
     (print "removed " name)))
 
 (defn upgrade-package [name]
@@ -309,7 +387,7 @@
       (print "  " name "  " (get pkg :version)))))
 
 (defn command-installed []
-  (let [root (opt-dir)]
+  (let [root (installed-dir)]
     (if (os/stat root)
       (let [entries (os/dir root)
             installed @[]]
@@ -317,7 +395,8 @@
           (let [pkg-root (join-path root name)]
             (if (os/stat pkg-root)
               (each version (os/dir pkg-root)
-                (array/push installed (string name "  " version))))))
+                (if (read-manifest name version)
+                  (array/push installed (string name "  " version)))))))
         (if (= 0 (length installed))
           (print "no installed packages")
           (do
