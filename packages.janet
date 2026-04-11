@@ -46,6 +46,19 @@
               "cp rg \"$PREFIX/bin/rg\""
               "chmod 755 \"$PREFIX/bin/rg\""]
       :bins ["rg"]
-      :notes "Installs the prebuilt ripgrep macOS arm64 release archive."}})
+      :notes "Installs the prebuilt ripgrep macOS arm64 release archive."}
+
+    "tree"
+    @{:name "tree"
+      :version "2.2.1"
+      :source @{:type :url
+                :url "https://oldmanprogrammer.net/tar/tree/tree-2.2.1.tgz"
+                :archive :tar.gz
+                :strip-components 1}
+      :build ["make"
+              "make PREFIX=\"$PREFIX\" MANDIR=\"$PREFIX/share/man\" install"
+              "chmod 755 \"$PREFIX/bin/tree\""]
+      :bins ["tree"]
+      :notes "Builds the upstream tree source release into the package prefix."}})
 
 packages
