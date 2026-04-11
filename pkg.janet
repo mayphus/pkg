@@ -53,6 +53,9 @@
 (defn config-dir []
   (join-path (home) ".config" "pkg"))
 
+(defn applications-dir []
+  (join-path (home) "Applications"))
+
 (defn cache-dir []
   (join-path (share-dir) "cache"))
 
@@ -136,6 +139,10 @@
           (array/push links @{:name bin-name
                               :path (join-path "bin" bin-name)}))
         links)))
+
+(defn package-apps [pkg]
+  (or (get pkg :apps)
+      @[]))
 
 (defn expand-project-path [value]
   (if (or (= "" value)
@@ -242,6 +249,13 @@
       (join-path (expand-project-path (get source :path)) path)
       (join-path (package-install-dir pkg) path))))
 
+(defn app-target [app]
+  (or (get app :target)
+      (join-path (applications-dir) (get app :name))))
+
+(defn app-source-path [pkg app]
+  (join-path (package-install-dir pkg) (get app :path)))
+
 (defn manifest-source-data [source]
   (var out @{:type (get source :type)})
   (if (get source :url)
@@ -262,11 +276,16 @@
 
 (defn write-manifest [pkg]
   (let [linked @[]
+        apps @[]
         source (get pkg :source)]
     (each link (package-links pkg)
       (array/push linked @{:name (get link :name)
                            :path (join-path (bin-dir) (get link :name))
                            :target (link-target pkg link)}))
+    (each app (package-apps pkg)
+      (array/push apps @{:name (get app :name)
+                         :path (app-target app)
+                         :source (app-source-path pkg app)}))
     (run ["/bin/mkdir" "-p" (package-manifest-dir pkg)])
     (spit (package-manifest-file pkg)
           (string
@@ -276,6 +295,7 @@
                 :prefix (package-install-dir pkg)
                 :bins (get pkg :bins)
                 :linked linked
+                :apps apps
                 :source (manifest-source-data source)})
             "\n"))))
 
@@ -294,13 +314,21 @@
   (or (get manifest :linked)
       @[]))
 
+(defn manifest-apps [manifest]
+  (or (get manifest :apps)
+      @[]))
+
 (defn manifest-unlink [manifest]
   (each entry (manifest-linked-bins manifest)
     (let [path (get entry :path)
           target (get entry :target)
           current (current-link-target path)]
       (if (and current (= current target))
-        (run ["/bin/rm" "-f" path])))))
+        (run ["/bin/rm" "-f" path]))))
+  (each app (manifest-apps manifest)
+    (let [path (get app :path)]
+      (if (os/stat path)
+        (run ["/bin/rm" "-rf" path])))))
 
 (defn remove-manifest [name version]
   (let [manifest-dir (package-manifest-dir (manifest-pkg name version))
@@ -340,9 +368,24 @@
       (run ["/bin/ln" "-s" target dest])
       (print "linked " (get link :name) " -> " target))))
 
+(defn install-app-bundle [pkg app]
+  (let [source (app-source-path pkg app)
+        dest (app-target app)]
+    (if (not (os/stat source))
+      (fail (string "missing app bundle at " source)))
+    (if (os/stat dest)
+      (fail (string "refusing to replace existing app bundle: " dest)))
+    (run ["/bin/mkdir" "-p" (dirname dest)])
+    (run ["/bin/cp" "-R" source dest])
+    (print "installed app " (get app :name) " -> " dest)))
+
 (defn link-package-exposed [pkg]
   (each link (package-links pkg)
     (link-exposed-path pkg link)))
+
+(defn install-package-apps [pkg]
+  (each app (package-apps pkg)
+    (install-app-bundle pkg app)))
 
 (defn link-local-package [pkg]
   (let [source (get pkg :source)]
@@ -371,6 +414,7 @@
       :tar.gz (run ["/usr/bin/tar" "-xzf" archive-path "-C" src-dir "--strip-components" (string strip-components)])
       :tar.xz (run ["/usr/bin/tar" "-xJf" archive-path "-C" src-dir "--strip-components" (string strip-components)])
       :zip (run ["/usr/bin/unzip" "-q" archive-path "-d" src-dir])
+      :dmg (copy-file archive-path (join-path src-dir archive-name))
       (fail (string "unsupported archive type: " (get source :archive))))))
 
 (defn fetch-git-source [pkg]
@@ -408,6 +452,7 @@
           :git (fetch-git-source pkg)
           (fail (string "unsupported source type: " (get source :type))))
         (run-build-steps pkg)
+        (install-package-apps pkg)
         (link-package-exposed pkg)
         (write-manifest pkg)
         (print "installed " name " -> " target)))))

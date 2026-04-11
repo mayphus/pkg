@@ -180,6 +180,9 @@ write_pkg_cli() {
 (defn config-dir []
   (join-path (home) ".config" "pkg"))
 
+(defn applications-dir []
+  (join-path (home) "Applications"))
+
 (defn cache-dir []
   (join-path (share-dir) "cache"))
 
@@ -263,6 +266,10 @@ write_pkg_cli() {
           (array/push links @{:name bin-name
                               :path (join-path "bin" bin-name)}))
         links)))
+
+(defn package-apps [pkg]
+  (or (get pkg :apps)
+      @[]))
 
 (defn expand-project-path [value]
   (if (or (= "" value)
@@ -369,6 +376,13 @@ write_pkg_cli() {
       (join-path (expand-project-path (get source :path)) path)
       (join-path (package-install-dir pkg) path))))
 
+(defn app-target [app]
+  (or (get app :target)
+      (join-path (applications-dir) (get app :name))))
+
+(defn app-source-path [pkg app]
+  (join-path (package-install-dir pkg) (get app :path)))
+
 (defn manifest-source-data [source]
   (var out @{:type (get source :type)})
   (if (get source :url)
@@ -389,11 +403,16 @@ write_pkg_cli() {
 
 (defn write-manifest [pkg]
   (let [linked @[]
+        apps @[]
         source (get pkg :source)]
     (each link (package-links pkg)
       (array/push linked @{:name (get link :name)
                            :path (join-path (bin-dir) (get link :name))
                            :target (link-target pkg link)}))
+    (each app (package-apps pkg)
+      (array/push apps @{:name (get app :name)
+                         :path (app-target app)
+                         :source (app-source-path pkg app)}))
     (run ["/bin/mkdir" "-p" (package-manifest-dir pkg)])
     (spit (package-manifest-file pkg)
           (string
@@ -403,6 +422,7 @@ write_pkg_cli() {
                 :prefix (package-install-dir pkg)
                 :bins (get pkg :bins)
                 :linked linked
+                :apps apps
                 :source (manifest-source-data source)})
             "\n"))))
 
@@ -421,13 +441,21 @@ write_pkg_cli() {
   (or (get manifest :linked)
       @[]))
 
+(defn manifest-apps [manifest]
+  (or (get manifest :apps)
+      @[]))
+
 (defn manifest-unlink [manifest]
   (each entry (manifest-linked-bins manifest)
     (let [path (get entry :path)
           target (get entry :target)
           current (current-link-target path)]
       (if (and current (= current target))
-        (run ["/bin/rm" "-f" path])))))
+        (run ["/bin/rm" "-f" path]))))
+  (each app (manifest-apps manifest)
+    (let [path (get app :path)]
+      (if (os/stat path)
+        (run ["/bin/rm" "-rf" path])))))
 
 (defn remove-manifest [name version]
   (let [manifest-dir (package-manifest-dir (manifest-pkg name version))
@@ -467,9 +495,24 @@ write_pkg_cli() {
       (run ["/bin/ln" "-s" target dest])
       (print "linked " (get link :name) " -> " target))))
 
+(defn install-app-bundle [pkg app]
+  (let [source (app-source-path pkg app)
+        dest (app-target app)]
+    (if (not (os/stat source))
+      (fail (string "missing app bundle at " source)))
+    (if (os/stat dest)
+      (fail (string "refusing to replace existing app bundle: " dest)))
+    (run ["/bin/mkdir" "-p" (dirname dest)])
+    (run ["/bin/cp" "-R" source dest])
+    (print "installed app " (get app :name) " -> " dest)))
+
 (defn link-package-exposed [pkg]
   (each link (package-links pkg)
     (link-exposed-path pkg link)))
+
+(defn install-package-apps [pkg]
+  (each app (package-apps pkg)
+    (install-app-bundle pkg app)))
 
 (defn link-local-package [pkg]
   (let [source (get pkg :source)]
@@ -498,6 +541,7 @@ write_pkg_cli() {
       :tar.gz (run ["/usr/bin/tar" "-xzf" archive-path "-C" src-dir "--strip-components" (string strip-components)])
       :tar.xz (run ["/usr/bin/tar" "-xJf" archive-path "-C" src-dir "--strip-components" (string strip-components)])
       :zip (run ["/usr/bin/unzip" "-q" archive-path "-d" src-dir])
+      :dmg (copy-file archive-path (join-path src-dir archive-name))
       (fail (string "unsupported archive type: " (get source :archive))))))
 
 (defn fetch-git-source [pkg]
@@ -535,6 +579,7 @@ write_pkg_cli() {
           :git (fetch-git-source pkg)
           (fail (string "unsupported source type: " (get source :type))))
         (run-build-steps pkg)
+        (install-package-apps pkg)
         (link-package-exposed pkg)
         (write-manifest pkg)
         (print "installed " name " -> " target)))))
@@ -802,7 +847,24 @@ write_pkg_registry() {
               "cp clojure.1 \"$PREFIX/share/man/man1/clojure.1\""
               "cp clj.1 \"$PREFIX/share/man/man1/clj.1\""]
       :bins ["clojure" "clj"]
-      :notes "Installs the official Clojure CLI tools distribution for macOS arm64."}})
+      :notes "Installs the official Clojure CLI tools distribution for macOS arm64."}
+
+    "google-chrome"
+    @{:name "google-chrome"
+      :version "stable"
+      :source @{:type :url
+                :url "https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg"
+                :file-name "googlechrome.dmg"
+                :archive :dmg}
+      :build ["mkdir -p \"$PREFIX/Applications\" \"$PREFIX/bin\""
+              "MOUNT_DIR=\"$BUILD_DIR/mnt\"; rm -rf \"$MOUNT_DIR\"; mkdir -p \"$MOUNT_DIR\"; cleanup(){ /usr/bin/hdiutil detach \"$MOUNT_DIR\" -quiet >/dev/null 2>&1 || true; }; trap cleanup EXIT INT TERM; /usr/bin/hdiutil attach \"$SRC_DIR/googlechrome.dmg\" -mountpoint \"$MOUNT_DIR\" -nobrowse -quiet; cp -R \"$MOUNT_DIR/Google Chrome.app\" \"$PREFIX/Applications/Google Chrome.app\""
+              "chmod 755 \"$PREFIX/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\""
+              "printf '%s\\n' '#!/bin/sh' 'exec \"$HOME/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" \"$@\"' > \"$PREFIX/bin/google-chrome\""
+              "chmod 755 \"$PREFIX/bin/google-chrome\""]
+      :bins ["google-chrome"]
+      :apps [@{:name "Google Chrome.app"
+               :path "Applications/Google Chrome.app"}]
+      :notes "Installs Google Chrome from the official stable macOS disk image into the package prefix."}})
 
 packages
 EOF_PKG_REGISTRY
