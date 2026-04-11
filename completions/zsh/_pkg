@@ -1,0 +1,67 @@
+#compdef pkg
+
+_pkg_registry_packages() {
+  local -a pkgs
+  pkgs=(${(f)"$($words[1] list 2>/dev/null | awk 'NR>1 {print $1}')"})
+  _describe -t packages 'package' pkgs
+}
+
+_pkg_installed_packages() {
+  local -a pkgs
+  pkgs=(${(f)"$($words[1] installed 2>/dev/null | awk 'NR>2 {print $1}')"})
+  _describe -t packages 'installed package' pkgs
+}
+
+local -a commands
+commands=(
+  'list:show registry packages'
+  'search:search registry packages'
+  'installed:show installed packages'
+  'show:show package metadata'
+  'info:show installed package details'
+  'install:install a package'
+  'reinstall:reinstall current package version'
+  'remove:remove a package'
+  'upgrade:upgrade an installed package'
+  'self-upgrade:upgrade pkg itself'
+  'cleanup:remove build state'
+  'audit:report packages missing sha256'
+  'version:show pkg source metadata'
+  'doctor:print pkg paths'
+)
+
+_arguments -C \
+  '1:command:->command' \
+  '*::arg:->args'
+
+case $state in
+  command)
+    _describe -t commands 'pkg command' commands
+    ;;
+  args)
+    case "${words[2]}" in
+      search)
+        _message 'search term'
+        ;;
+      show|install|reinstall)
+        _pkg_registry_packages
+        ;;
+      info|remove)
+        _pkg_installed_packages
+        ;;
+      upgrade)
+        if (( CURRENT == 3 )); then
+          local -a upgrade_targets
+          upgrade_targets=(--all all pkg)
+          upgrade_targets+=(${(f)"$($words[1] installed 2>/dev/null | awk 'NR>2 {print $1}')"})
+          _describe -t targets 'upgrade target' upgrade_targets
+        fi
+        ;;
+      cleanup)
+        if (( CURRENT == 3 )); then
+          _values 'cleanup option' --cache
+        fi
+        ;;
+    esac
+    ;;
+esac

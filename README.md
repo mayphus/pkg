@@ -70,10 +70,19 @@ The installer does three things:
 
 After that, `pkg` should work directly from your shell as long as `~/.local/bin` is on `PATH`.
 
+For zsh completion, add the managed completion directory to `fpath` and run `compinit`:
+
+```sh
+fpath=(~/.local/share/pkg/completions/zsh $fpath)
+autoload -Uz compinit
+compinit
+```
+
 Running `install.sh` again is allowed. Treat it as a bootstrap-style update:
 
 - it does not reject an existing install
 - it refreshes `~/.local/bin/pkg`, `pkg.janet`, and `packages.janet`
+- it refreshes the zsh completion at `~/.local/share/pkg/completions/zsh/_pkg`
 - it keeps using the existing Janet install if the requested Janet version is already present
 
 If you want `pkg` to install artifacts from this repo's GitHub Releases, configure the repo slug once:

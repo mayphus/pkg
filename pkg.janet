@@ -83,6 +83,12 @@
 (defn self-meta-file []
   (join-path (config-dir) "self-meta.jdn"))
 
+(defn completions-dir []
+  (join-path (share-dir) "completions"))
+
+(defn zsh-completions-dir []
+  (join-path (completions-dir) "zsh"))
+
 (defn path-prefix? [prefix path]
   (and prefix
        path
@@ -314,19 +320,24 @@
         wrapper-src (join-path resolved "bin" "pkg")
         cli-src (join-path resolved "pkg.janet")
         registry-src (join-path resolved "packages.janet")
+        zsh-completion-src (join-path resolved "completions" "zsh" "_pkg")
         wrapper-dest (join-path (bin-dir) "pkg")
         cli-dest (join-path (lib-dir) "pkg.janet")
-        registry-dest (join-path (lib-dir) "packages.janet")]
+        registry-dest (join-path (lib-dir) "packages.janet")
+        zsh-completion-dest (join-path (zsh-completions-dir) "_pkg")]
     (if (not (os/stat wrapper-src))
       (fail (string "missing pkg wrapper at " wrapper-src)))
     (if (not (os/stat cli-src))
       (fail (string "missing pkg CLI at " cli-src)))
     (if (not (os/stat registry-src))
       (fail (string "missing pkg registry at " registry-src)))
+    (if (not (os/stat zsh-completion-src))
+      (fail (string "missing pkg zsh completion at " zsh-completion-src)))
     (copy-file wrapper-src wrapper-dest)
     (run ["/bin/chmod" "755" wrapper-dest])
     (copy-file cli-src cli-dest)
     (copy-file registry-src registry-dest)
+    (copy-file zsh-completion-src zsh-completion-dest)
     (spit (self-source-file) (string resolved "\n"))
     (write-self-meta @{:source :local
                        :root resolved
@@ -341,18 +352,22 @@
         wrapper-src (join-path tmp-dir "bin" "pkg")
         cli-src (join-path tmp-dir "pkg.janet")
         registry-src (join-path tmp-dir "packages.janet")
+        zsh-completion-src (join-path tmp-dir "completions" "zsh" "_pkg")
         wrapper-dest (join-path (bin-dir) "pkg")
         cli-dest (join-path (lib-dir) "pkg.janet")
-        registry-dest (join-path (lib-dir) "packages.janet")]
+        registry-dest (join-path (lib-dir) "packages.janet")
+        zsh-completion-dest (join-path (zsh-completions-dir) "_pkg")]
     (run ["/bin/rm" "-rf" tmp-dir])
-    (run ["/bin/mkdir" "-p" (join-path tmp-dir "bin")])
+    (run ["/bin/mkdir" "-p" (join-path tmp-dir "bin") (join-path tmp-dir "completions" "zsh")])
     (download-file (string base-url "/bin/pkg") wrapper-src)
     (download-file (string base-url "/pkg.janet") cli-src)
     (download-file (string base-url "/packages.janet") registry-src)
+    (download-file (string base-url "/completions/zsh/_pkg") zsh-completion-src)
     (copy-file wrapper-src wrapper-dest)
     (run ["/bin/chmod" "755" wrapper-dest])
     (copy-file cli-src cli-dest)
     (copy-file registry-src registry-dest)
+    (copy-file zsh-completion-src zsh-completion-dest)
     (write-self-meta @{:source :remote
                        :repo repo
                        :ref ref

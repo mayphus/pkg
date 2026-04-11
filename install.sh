@@ -10,6 +10,8 @@ PREFIX="${PREFIX:-${HOME}/.local}"
 BIN_DIR="${PREFIX}/bin"
 LIB_DIR="${PREFIX}/lib"
 PKG_LIB_DIR="${PREFIX}/share/pkg/lib"
+COMPLETIONS_DIR="${PREFIX}/share/pkg/completions"
+ZSH_COMPLETIONS_DIR="${COMPLETIONS_DIR}/zsh"
 CONFIG_DIR="${HOME}/.config/pkg"
 SELF_SOURCE_FILE="${CONFIG_DIR}/self-source"
 SELF_META_FILE="${CONFIG_DIR}/self-meta.jdn"
@@ -128,11 +130,12 @@ bootstrap_janet() {
 }
 
 install_pkg() {
-  mkdir -p "${BIN_DIR}" "${PKG_LIB_DIR}" "${CONFIG_DIR}"
+  mkdir -p "${BIN_DIR}" "${PKG_LIB_DIR}" "${ZSH_COMPLETIONS_DIR}" "${CONFIG_DIR}"
   fetch_pkg_file "bin/pkg" "${BIN_DIR}/pkg"
   chmod 755 "${BIN_DIR}/pkg"
   fetch_pkg_file "pkg.janet" "${PKG_LIB_DIR}/pkg.janet"
   fetch_pkg_file "packages.janet" "${PKG_LIB_DIR}/packages.janet"
+  fetch_pkg_file "completions/zsh/_pkg" "${ZSH_COMPLETIONS_DIR}/_pkg"
   printf '%s\n' "${BOOTSTRAP_REPO}" > "${BOOTSTRAP_REPO_FILE}"
   printf '%s\n' "${BOOTSTRAP_REF}" > "${BOOTSTRAP_REF_FILE}"
 
@@ -161,3 +164,4 @@ install_pkg
 
 printf '%s\n' "Installed Janet and pkg into ${PREFIX}."
 printf '%s\n' "Make sure ${BIN_DIR} is on your PATH."
+printf '%s\n' "Zsh completion is installed at ${ZSH_COMPLETIONS_DIR}/_pkg."
