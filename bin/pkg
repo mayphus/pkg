@@ -1,5 +1,5 @@
 #!/bin/sh
-ROOT="/Users/mayphus/lpkg"
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 JANET_BIN="${HOME}/.local/bin/janet"
 JANET_LIB="${HOME}/.local/lib/janet"
 export PKG_ROOT="$ROOT"

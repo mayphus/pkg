@@ -53,6 +53,12 @@
 (defn build-root []
   (join-path (share-dir) "build"))
 
+(defn path-prefix? [prefix path]
+  (and prefix
+       path
+       (>= (length path) (length prefix))
+       (= prefix (string/slice path 0 (length prefix)))))
+
 (defn shell-assignments [env]
   (var parts @[])
   (eachk key env
@@ -109,10 +115,41 @@
       pkg
       (fail (string "unknown package: " name)))))
 
+(defn current-link-target [path]
+  (if (os/stat path)
+    (os/readlink path)
+    nil))
+
+(defn managed-link-target? [path]
+  (or (path-prefix? (package-root) path)
+      (path-prefix? (project-root) path)))
+
+(defn expected-bin-target [pkg bin-name]
+  (let [source (get pkg :source)]
+    (if (= :link (get source :type))
+      (join-path (expand-project-path (get source :path)) bin-name)
+      (join-path (package-install-dir pkg) "bin" bin-name))))
+
+(defn safe-unlink-bin [pkg bin-name]
+  (let [dest (join-path (bin-dir) bin-name)
+        current-target (current-link-target dest)
+        expected-target (expected-bin-target pkg bin-name)]
+    (if (os/stat dest)
+      (if current-target
+        (if (or (= current-target expected-target)
+                (managed-link-target? current-target))
+          (run ["/bin/rm" "-f" dest])
+          (fail (string "refusing to replace unmanaged link: " dest " -> " current-target)))
+        (fail (string "refusing to replace non-symlink path: " dest))))))
+
 (defn link-installed-bin [target link-name]
   (let [dest (join-path (bin-dir) link-name)]
-    (if (os/stat dest)
-      (run ["/bin/rm" "-f" dest]))
+    (safe-unlink-bin @{:name link-name
+                       :version ""
+                       :source @{:type :link
+                                 :path ""}
+                       :bins [link-name]}
+                     link-name)
     (run ["/bin/ln" "-s" target dest])
     (print "linked " link-name " -> " target)))
 
@@ -126,6 +163,9 @@
 (defn link-local-package [pkg]
   (let [source (get pkg :source)
         root (expand-project-path (get source :path))]
+    (run ["/bin/mkdir" "-p" (package-install-dir pkg)])
+    (spit (join-path (package-install-dir pkg) ".pkg-link-source")
+          (string root "\n"))
     (each bin-name (get pkg :bins)
       (link-installed-bin
         (join-path root bin-name)
@@ -172,6 +212,8 @@
         target (package-install-dir pkg)]
     (if (= :link (get source :type))
       (do
+        (if (os/stat target)
+          (fail (string "already installed at " target)))
         (link-local-package pkg)
         (print "installed " name " (link)"))
       (do
@@ -189,13 +231,15 @@
 (defn remove-package [name]
   (ensure-layout)
   (let [pkg (package-by-name name)
-        target (join-path (opt-dir) name)]
+        target (package-install-dir pkg)]
     (each bin-name (get pkg :bins)
-      (let [bin-link (join-path (bin-dir) bin-name)]
-        (if (os/stat bin-link)
-          (run ["/bin/rm" "-f" bin-link]))))
+      (safe-unlink-bin pkg bin-name))
     (if (os/stat target)
       (run ["/bin/rm" "-rf" target]))
+    (let [package-root-dir (join-path (opt-dir) name)]
+      (if (and (os/stat package-root-dir)
+               (= 0 (length (os/dir package-root-dir))))
+        (run ["/bin/rm" "-rf" package-root-dir])))
     (print "removed " name)))
 
 (defn command-list []
@@ -207,13 +251,19 @@
 (defn command-installed []
   (let [root (opt-dir)]
     (if (os/stat root)
-      (let [entries (os/dir root)]
-        (if (= 0 (length entries))
+      (let [entries (os/dir root)
+            installed @[]]
+        (each name entries
+          (let [pkg-root (join-path root name)]
+            (if (os/stat pkg-root)
+              (each version (os/dir pkg-root)
+                (array/push installed (string name "  " version))))))
+        (if (= 0 (length installed))
           (print "no installed packages")
           (do
             (print "installed packages:")
-            (each name entries
-              (print "  " name)))))
+            (each item installed
+              (print "  " item)))))
       (print "no installed packages"))))
 
 (defn command-show [name]

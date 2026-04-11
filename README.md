@@ -2,7 +2,7 @@
 
 `pkg` is a small Janet-based personal package manager aimed at replacing the part of Homebrew you actually use, not the whole Homebrew formula ecosystem.
 
-It is intentionally user-prefix only. `pkg` installs into `~/.local` and uses `/tmp` for temporary build work; it should not write into `/usr/local`, `/opt/homebrew`, or other system prefixes.
+It is intentionally user-prefix only. `pkg` installs into `~/.local` and stages builds under `~/.local/share/pkg/build`; it should not write into `/usr/local`, `/opt/homebrew`, or other system prefixes.
 
 It installs into your user prefix instead of `/opt/homebrew`:
 
@@ -66,8 +66,10 @@ After you have `janet`, put the wrapper on your `PATH`:
 
 ```sh
 mkdir -p ~/.local/bin
-ln -sf ~/lpkg/bin/pkg ~/.local/bin/pkg
+ln -sf /path/to/pkg/bin/pkg ~/.local/bin/pkg
 ```
+
+The wrapper discovers the repo root from its own location, so it can be symlinked from anywhere.
 
 Then ensure `~/.local/bin` is on your shell `PATH`.
 
