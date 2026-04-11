@@ -312,7 +312,9 @@ write_pkg_cli() {
 
 (defn ensure-sha256 [archive-path expected]
   (if expected
-    (let [output (string/trim (os/shell (string "/usr/bin/shasum -a 256 " archive-path)))
+    (let [tmp-output (join-path (build-root) ".sha256-check")
+          _ (os/shell (string "/usr/bin/shasum -a 256 \"" archive-path "\" > \"" tmp-output "\""))
+          output (string/trim (slurp tmp-output))
           actual (first (string/split " " output))]
       (if (not (= actual expected))
         (fail (string "sha256 mismatch for " archive-path ": expected " expected ", got " actual))))))
@@ -739,7 +741,68 @@ write_pkg_registry() {
       :build ["mkdir -p \"$PREFIX\""
               "tar -cf - . | tar -xf - -C \"$PREFIX\""]
       :bins ["emacs" "emacsclient" "etags" "ctags"]
-      :notes "Installs the repo-built Emacs master macOS arm64 artifact from GitHub Releases."}})
+      :notes "Installs the repo-built Emacs master macOS arm64 artifact from GitHub Releases."}
+
+    "openjdk"
+    @{:name "openjdk"
+      :version "21.0.9+10"
+      :source @{:type :url
+                :url "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.9%2B10/OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.9_10.tar.gz"
+                :archive :tar.gz
+                :strip-components 1
+                :sha256 "55a40abeb0e174fdc70f769b34b50b70c3967e0b12a643e6a3e23f9a582aac16"}
+      :build ["mkdir -p \"$PREFIX\""
+              "tar -cf - . | tar -xf - -C \"$PREFIX\""]
+      :bins ["java" "javac" "jar" "jarsigner" "javadoc" "javap" "jlink" "jpackage" "jshell" "keytool"]
+      :links [@{:name "java" :path "Contents/Home/bin/java"}
+              @{:name "javac" :path "Contents/Home/bin/javac"}
+              @{:name "jar" :path "Contents/Home/bin/jar"}
+              @{:name "jarsigner" :path "Contents/Home/bin/jarsigner"}
+              @{:name "javadoc" :path "Contents/Home/bin/javadoc"}
+              @{:name "javap" :path "Contents/Home/bin/javap"}
+              @{:name "jlink" :path "Contents/Home/bin/jlink"}
+              @{:name "jpackage" :path "Contents/Home/bin/jpackage"}
+              @{:name "jshell" :path "Contents/Home/bin/jshell"}
+              @{:name "keytool" :path "Contents/Home/bin/keytool"}]
+      :notes "Installs Eclipse Temurin OpenJDK 21 for macOS arm64."}
+
+    "bun"
+    @{:name "bun"
+      :version "1.3.12"
+      :source @{:type :url
+                :url "https://github.com/oven-sh/bun/releases/download/bun-v1.3.12/bun-darwin-aarch64.zip"
+                :archive :zip
+                :sha256 "6c4bb87dd013ed1a8d6a16e357a3d094959fd5530b4d7061f7f3680c3c7cea1c"}
+      :build ["mkdir -p \"$PREFIX/bin\""
+              "cp bun-darwin-aarch64/bun \"$PREFIX/bin/bun\""
+              "chmod 755 \"$PREFIX/bin/bun\""]
+      :bins ["bun"]
+      :notes "Installs the official Bun macOS arm64 binary."}
+
+    "clojure"
+    @{:name "clojure"
+      :version "1.12.4.1618"
+      :source @{:type :url
+                :url "https://download.clojure.org/install/clojure-tools-1.12.4.1618.tar.gz"
+                :archive :tar.gz
+                :strip-components 1
+                :sha256 "13769da6d63a98deb2024378ae1a64e4ee211ac1035340dfca7a6944c41cde21"}
+      :build ["mkdir -p \"$PREFIX\" \"$PREFIX/bin\" \"$PREFIX/libexec\" \"$PREFIX/share/man/man1\""
+              "cp deps.edn \"$PREFIX/deps.edn\""
+              "cp example-deps.edn \"$PREFIX/example-deps.edn\""
+              "cp tools.edn \"$PREFIX/tools.edn\""
+              "cp ./*.jar \"$PREFIX/libexec/\""
+              "cp clojure ./clojure.local"
+              "cp clj ./clj.local"
+              "/usr/bin/perl -0pi -e 's|PREFIX|$ENV{PREFIX}|g' ./clojure.local"
+              "/usr/bin/perl -0pi -e 's|BINDIR|$ENV{PREFIX}/bin|g' ./clj.local"
+              "cp ./clojure.local \"$PREFIX/bin/clojure\""
+              "cp ./clj.local \"$PREFIX/bin/clj\""
+              "chmod 755 \"$PREFIX/bin/clojure\" \"$PREFIX/bin/clj\""
+              "cp clojure.1 \"$PREFIX/share/man/man1/clojure.1\""
+              "cp clj.1 \"$PREFIX/share/man/man1/clj.1\""]
+      :bins ["clojure" "clj"]
+      :notes "Installs the official Clojure CLI tools distribution for macOS arm64."}})
 
 packages
 EOF_PKG_REGISTRY

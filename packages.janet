@@ -107,6 +107,31 @@
               "cp bun-darwin-aarch64/bun \"$PREFIX/bin/bun\""
               "chmod 755 \"$PREFIX/bin/bun\""]
       :bins ["bun"]
-      :notes "Installs the official Bun macOS arm64 binary."}})
+      :notes "Installs the official Bun macOS arm64 binary."}
+
+    "clojure"
+    @{:name "clojure"
+      :version "1.12.4.1618"
+      :source @{:type :url
+                :url "https://download.clojure.org/install/clojure-tools-1.12.4.1618.tar.gz"
+                :archive :tar.gz
+                :strip-components 1
+                :sha256 "13769da6d63a98deb2024378ae1a64e4ee211ac1035340dfca7a6944c41cde21"}
+      :build ["mkdir -p \"$PREFIX\" \"$PREFIX/bin\" \"$PREFIX/libexec\" \"$PREFIX/share/man/man1\""
+              "cp deps.edn \"$PREFIX/deps.edn\""
+              "cp example-deps.edn \"$PREFIX/example-deps.edn\""
+              "cp tools.edn \"$PREFIX/tools.edn\""
+              "cp ./*.jar \"$PREFIX/libexec/\""
+              "cp clojure ./clojure.local"
+              "cp clj ./clj.local"
+              "/usr/bin/perl -0pi -e 's|PREFIX|$ENV{PREFIX}|g' ./clojure.local"
+              "/usr/bin/perl -0pi -e 's|BINDIR|$ENV{PREFIX}/bin|g' ./clj.local"
+              "cp ./clojure.local \"$PREFIX/bin/clojure\""
+              "cp ./clj.local \"$PREFIX/bin/clj\""
+              "chmod 755 \"$PREFIX/bin/clojure\" \"$PREFIX/bin/clj\""
+              "cp clojure.1 \"$PREFIX/share/man/man1/clojure.1\""
+              "cp clj.1 \"$PREFIX/share/man/man1/clj.1\""]
+      :bins ["clojure" "clj"]
+      :notes "Installs the official Clojure CLI tools distribution for macOS arm64."}})
 
 packages
