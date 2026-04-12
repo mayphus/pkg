@@ -17,6 +17,29 @@ It installs into your user prefix instead of `/opt/homebrew`:
 
 This layout keeps binaries in one place and package payloads versioned under `opt`. That makes upgrades, cleanup, and manual inspection simpler than dropping files directly into `~/.local`.
 
+## Project Policy
+
+This project should stay small.
+
+`pkg` is a personal, curated package layer for a limited set of tools and apps. It is not trying to become a general package ecosystem, a Homebrew replacement, or a source-based dependency solver.
+
+When deciding whether to add or maintain a package, prefer the least ambitious path:
+
+1. Use upstream binaries first.
+2. If a custom build is needed, build it once in GitHub Actions and install the published artifact locally.
+3. Only add reusable dependency packages when they are clearly useful for multiple packages.
+4. Avoid modeling large native dependency graphs just to support one package.
+
+Practical rules:
+
+- Do not add deep dependency trees unless there is a clear reuse story.
+- Do not make `pkg install` trigger builds remotely. Build/publish and install stay separate.
+- Prefer release artifacts over local source builds for heavy native packages.
+- Prefer simple package recipes over flexible package abstractions.
+- If a package starts pulling the project toward ecosystem maintenance, stop and reconsider.
+
+The goal is a tool you can keep in your head.
+
 ## What v0 supports
 
 - `:link` packages for local scripts and tools

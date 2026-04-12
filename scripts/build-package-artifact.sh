@@ -70,6 +70,60 @@ pkgconfig_paths() {
   printf '%s' "${out}"
 }
 
+include_flags() {
+  out=""
+  for dep in "$@"; do
+    prefix="$(brew --prefix "${dep}")"
+    dir="${prefix}/include"
+    if [ -d "${dir}" ]; then
+      out="${out} -I${dir}"
+    fi
+  done
+  printf '%s' "${out# }"
+}
+
+library_flags() {
+  out=""
+  for dep in "$@"; do
+    prefix="$(brew --prefix "${dep}")"
+    dir="${prefix}/lib"
+    if [ -d "${dir}" ]; then
+      out="${out} -L${dir}"
+    fi
+  done
+  printf '%s' "${out# }"
+}
+
+include_paths() {
+  out=""
+  for dep in "$@"; do
+    prefix="$(brew --prefix "${dep}")"
+    dir="${prefix}/include"
+    if [ -d "${dir}" ]; then
+      if [ -n "${out}" ]; then
+        out="${out}:"
+      fi
+      out="${out}${dir}"
+    fi
+  done
+  printf '%s' "${out}"
+}
+
+library_paths() {
+  out=""
+  for dep in "$@"; do
+    prefix="$(brew --prefix "${dep}")"
+    dir="${prefix}/lib"
+    if [ -d "${dir}" ]; then
+      if [ -n "${out}" ]; then
+        out="${out}:"
+      fi
+      out="${out}${dir}"
+    fi
+  done
+  printf '%s' "${out}"
+}
+
 ensure_rpath() {
   file="$1"
   rpath="$2"
@@ -183,7 +237,13 @@ build_librime() {
 
   deps="boost icu4c@78 pkgconf capnp gflags glog leveldb lua marisa opencc yaml-cpp"
   export CMAKE_PREFIX_PATH="$(brew_prefixes ${deps})"
+  export CMAKE_INCLUDE_PATH="$(include_paths ${deps})"
+  export CMAKE_LIBRARY_PATH="$(library_paths ${deps})"
   export PKG_CONFIG_PATH="$(pkgconfig_paths ${deps})"
+  export CPPFLAGS="$(include_flags ${deps})"
+  export LDFLAGS="$(library_flags ${deps})"
+  export CFLAGS="${CPPFLAGS}"
+  export CXXFLAGS="${CPPFLAGS}"
 
   cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
