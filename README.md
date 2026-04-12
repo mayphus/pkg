@@ -232,25 +232,41 @@ Package definitions live in `packages.janet` as Janet data:
   :bins ["janet" "jpm"]}
 ```
 
-For dependency-aware native packages, the registry can also declare build-only tools, runtime deps, staged resources, and a first-class build system:
+For artifact-driven native packages, the registry can keep the local install contract and the CI build contract in the same package entry:
 
 ```janet
 @{:name "librime"
   :version "1.16.1"
-  :source @{:type :git
-            :url "https://github.com/rime/librime.git"
-            :ref "1.16.1"}
-  :build-depends ["cmake" "pkgconf"]
-  :depends ["leveldb" "opencc" "yaml-cpp"]
-  :build-system :cmake
-  :cmake-args ["-DBUILD_TEST=OFF"]
-  :resources [@{:name "plugin"
-                :url "https://example.invalid/plugin.tar.gz"
-                :archive :tar.gz
-                :strip-components 1
-                :sha256 "..."
-                :path "plugins/plugin"}]}
+  :artifact @{:tag "pkg-librime-1.16.1"
+              :file "librime-1.16.1-darwin-arm64-prefix.tar.gz"}
+  :ci @{:provider :homebrew
+        :builder :cmake
+        :source @{:type :git
+                  :url "https://github.com/rime/librime.git"
+                  :ref "1.16.1"
+                  :revision "..."}
+        :build-depends ["cmake" "pkgconf"]
+        :depends ["leveldb" "opencc" "yaml-cpp"]
+        :resources [@{:name "plugin"
+                      :url "https://example.invalid/plugin.tar.gz"
+                      :sha256 "..."
+                      :path "plugins/plugin"}]
+        :cmake-args ["-DBUILD_TEST=OFF"]}
+  :source @{:type :github-release
+            :repo "OWNER/REPO"
+            :tag "pkg-librime-1.16.1"
+            :file "librime-1.16.1-darwin-arm64-prefix.tar.gz"
+            :sha256-file true
+            :archive :tar.gz}}
 ```
+
+Field roles:
+
+- `:source` is what local `pkg install` uses.
+- `:artifact` describes the published release asset contract.
+- `:ci` describes how GitHub Actions should build that artifact.
+
+This keeps one package definition as the source of truth without requiring local installs and CI builds to use the same dependency provider.
 
 ## Practical limits
 

@@ -20,6 +20,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Janet
+        run: |
+          brew update
+          brew install janet
+
       - name: Build package prefix artifact
         run: |
           chmod 755 scripts/build-package-artifact.sh

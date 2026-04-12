@@ -402,14 +402,45 @@
       :version "1.16.1"
       :homepage "https://rime.im/"
       :license "BSD-3-Clause"
+      :artifact @{:tag "pkg-librime-1.16.1"
+                  :file "librime-1.16.1-darwin-arm64-prefix.tar.gz"}
+      :ci @{:provider :homebrew
+            :builder :cmake
+            :source @{:type :git
+                      :url "https://github.com/rime/librime.git"
+                      :ref "1.16.1"
+                      :revision "de4700e9f6b75b109910613df907965e3cbe0567"}
+            :build-depends ["boost" "cmake" "icu4c@78" "pkgconf"]
+            :depends ["capnp" "gflags" "glog" "leveldb" "lua" "marisa" "opencc" "snappy" "yaml-cpp"]
+            :resources [@{:name "lua"
+                          :url "https://github.com/hchunhui/librime-lua/archive/68f9c364a2d25a04c7d4794981d7c796b05ab627.tar.gz"
+                          :sha256 "3c4a60bacf8dd6389ca1b4b4889207b8f6c0c6a43e7b848cdac570d592a640b5"
+                          :path "plugins/lua"}
+                         @{:name "octagram"
+                          :url "https://github.com/lotem/librime-octagram/archive/dfcc15115788c828d9dd7b4bff68067d3ce2ffb8.tar.gz"
+                          :sha256 "7da3df7a5dae82557f7a4842b94dfe81dd21ef7e036b132df0f462f2dae18393"
+                          :path "plugins/octagram"}
+                         @{:name "predict"
+                          :url "https://github.com/rime/librime-predict/archive/920bd41ebf6f9bf6855d14fbe80212e54e749791.tar.gz"
+                          :sha256 "38b2f32254e1a35ac04dba376bc8999915c8fbdb35be489bffdf09079983400c"
+                          :path "plugins/predict"}
+                         @{:name "proto"
+                          :url "https://github.com/lotem/librime-proto/archive/657a923cd4c333e681dc943e6894e6f6d42d25b4.tar.gz"
+                          :sha256 "69af91b1941781be6eeceb2dbdc6c0860e279c4cf8ab76509802abbc5c0eb7b3"
+                          :path "plugins/proto"}]
+            :cmake-args ["-DBUILD_MERGED_PLUGINS=OFF"
+                         "-DENABLE_EXTERNAL_PLUGINS=ON"
+                         "-DBUILD_TEST=OFF"
+                         "-DCMAKE_INSTALL_RPATH=@loader_path/../lib;@loader_path"]}
       :source @{:type :github-release
                 :repo "mayphus/pkg"
                 :tag "pkg-librime-1.16.1"
                 :file "librime-1.16.1-darwin-arm64-prefix.tar.gz"
                 :sha256-file true
                 :archive :tar.gz}
+      :bins ["rime_dict_manager" "rime_deployer" "rime_patch" "rime_table_decompiler"]
       :install-mode :copy-tree
-      :notes "Installs the GitHub Actions-built macOS arm64 librime prefix artifact. Build publishing is separate from local installs: run the Build Package Artifact workflow for librime first, then install locally."}
+      :notes "Installs the GitHub Actions-built macOS arm64 librime prefix artifact. Build publishing is separate from local installs: run the Build Artifacts workflow for librime first, then install locally."}
 
     "rime"
     @{:name "rime"

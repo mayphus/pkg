@@ -13,6 +13,11 @@ if [ -z "${PACKAGE_NAME}" ]; then
   exit 1
 fi
 
+if ! command -v janet >/dev/null 2>&1; then
+  printf '%s\n' 'janet is required to read package build metadata.'
+  exit 1
+fi
+
 WORK_ROOT="${WORK_ROOT:-$(mktemp -d /tmp/pkg-package-build.XXXXXX)}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-${PWD}/dist}"
 SOURCE_DIR="${WORK_ROOT}/src"
@@ -40,6 +45,20 @@ download_and_extract() {
   rm -rf "${dest}"
   mkdir -p "${dest}"
   tar -xzf "${archive}" -C "${dest}" --strip-components 1
+}
+
+load_package_env() {
+  meta_file="${WORK_ROOT}/package-env.tsv"
+  janet scripts/package-build-meta.janet env "${PACKAGE_NAME}" > "${meta_file}"
+  while IFS="$(printf '\t')" read -r key value; do
+    [ -n "${key}" ] || continue
+    export "${key}=${value}"
+  done < "${meta_file}"
+}
+
+metadata_lines() {
+  kind="$1"
+  janet scripts/package-build-meta.janet "${kind}" "${PACKAGE_NAME}"
 }
 
 brew_prefixes() {
@@ -170,19 +189,29 @@ copy_brew_dependency() {
   printf '%s\n' "${dest}"
 }
 
-bundle_non_system_deps() {
-  changed=1
+list_macho_files() {
+  find "${INSTALL_ROOT}/bin" "${INSTALL_ROOT}/lib" -type f 2>/dev/null
+}
 
-  while [ "${changed}" -eq 1 ]; do
+list_linked_deps() {
+  file="$1"
+  otool -L "${file}" | tail -n +2 | awk '{print $1}'
+}
+
+bundle_non_system_deps() {
+  while :; do
     changed=0
-    for file in $(find "${INSTALL_ROOT}/bin" "${INSTALL_ROOT}/lib" -type f 2>/dev/null); do
+    files="$(list_macho_files)"
+
+    for file in ${files}; do
       if ! otool -L "${file}" >/dev/null 2>&1; then
         continue
       fi
 
       rewrite_macho "${file}"
 
-      otool -L "${file}" | tail -n +2 | awk '{print $1}' | while IFS= read -r dep; do
+      deps="$(list_linked_deps "${file}")"
+      for dep in ${deps}; do
         case "${dep}" in
           /System/*|/usr/lib/*)
             continue
@@ -193,6 +222,7 @@ bundle_non_system_deps() {
           "${INSTALL_ROOT}"/*)
             local_name="@rpath/$(basename "${dep}")"
             install_name_tool -change "${dep}" "${local_name}" "${file}" >/dev/null 2>&1 || true
+            changed=1
             continue
             ;;
         esac
@@ -203,55 +233,61 @@ bundle_non_system_deps() {
         changed=1
       done
     done
+
+    if [ "${changed}" -eq 0 ]; then
+      break
+    fi
   done
 }
 
 build_librime() {
-  PACKAGE_VERSION="1.16.1"
-  PACKAGE_TAG="pkg-librime-1.16.1"
-  ARTIFACT_NAME="librime-1.16.1-darwin-arm64-prefix.tar.gz"
-  LIBRIME_COMMIT="de4700e9f6b75b109910613df907965e3cbe0567"
+  build_deps="$(metadata_lines build-depends | tr '\n' ' ')"
+  runtime_deps="$(metadata_lines depends | tr '\n' ' ')"
+  all_deps="$(printf '%s %s' "${build_deps}" "${runtime_deps}" | xargs)"
+  cmake_args="$(metadata_lines cmake-args)"
 
   brew update
-  brew install boost cmake icu4c@78 pkgconf capnp gflags glog leveldb lua marisa opencc yaml-cpp
+  if [ -n "${all_deps}" ]; then
+    brew install ${all_deps}
+  fi
 
-  git clone https://github.com/rime/librime.git "${SOURCE_DIR}"
+  git clone "${CI_SOURCE_URL}" "${SOURCE_DIR}"
   (
     cd "${SOURCE_DIR}"
-    git checkout "${LIBRIME_COMMIT}"
+    if [ -n "${CI_SOURCE_REVISION:-}" ]; then
+      git checkout "${CI_SOURCE_REVISION}"
+    elif [ -n "${CI_SOURCE_REF:-}" ]; then
+      git checkout "${CI_SOURCE_REF}"
+    fi
   )
 
   mkdir -p "${SOURCE_DIR}/plugins"
-  download_and_extract "https://github.com/hchunhui/librime-lua/archive/68f9c364a2d25a04c7d4794981d7c796b05ab627.tar.gz" \
-    "3c4a60bacf8dd6389ca1b4b4889207b8f6c0c6a43e7b848cdac570d592a640b5" \
-    "${SOURCE_DIR}/plugins/lua"
-  download_and_extract "https://github.com/lotem/librime-octagram/archive/dfcc15115788c828d9dd7b4bff68067d3ce2ffb8.tar.gz" \
-    "7da3df7a5dae82557f7a4842b94dfe81dd21ef7e036b132df0f462f2dae18393" \
-    "${SOURCE_DIR}/plugins/octagram"
-  download_and_extract "https://github.com/rime/librime-predict/archive/920bd41ebf6f9bf6855d14fbe80212e54e749791.tar.gz" \
-    "38b2f32254e1a35ac04dba376bc8999915c8fbdb35be489bffdf09079983400c" \
-    "${SOURCE_DIR}/plugins/predict"
-  download_and_extract "https://github.com/lotem/librime-proto/archive/657a923cd4c333e681dc943e6894e6f6d42d25b4.tar.gz" \
-    "69af91b1941781be6eeceb2dbdc6c0860e279c4cf8ab76509802abbc5c0eb7b3" \
-    "${SOURCE_DIR}/plugins/proto"
+  metadata_lines resources | while IFS="$(printf '\t')" read -r resource_name resource_url resource_sha256 resource_path; do
+    [ -n "${resource_name}" ] || continue
+    download_and_extract "${resource_url}" "${resource_sha256}" "${SOURCE_DIR}/${resource_path}"
+  done
 
-  deps="boost icu4c@78 pkgconf capnp gflags glog leveldb lua marisa opencc yaml-cpp"
-  export CMAKE_PREFIX_PATH="$(brew_prefixes ${deps})"
-  export CMAKE_INCLUDE_PATH="$(include_paths ${deps})"
-  export CMAKE_LIBRARY_PATH="$(library_paths ${deps})"
-  export PKG_CONFIG_PATH="$(pkgconfig_paths ${deps})"
-  export CPPFLAGS="$(include_flags ${deps})"
-  export LDFLAGS="$(library_flags ${deps})"
+  export CMAKE_PREFIX_PATH="$(brew_prefixes ${all_deps})"
+  export CMAKE_INCLUDE_PATH="$(include_paths ${all_deps})"
+  export CMAKE_LIBRARY_PATH="$(library_paths ${all_deps})"
+  export PKG_CONFIG_PATH="$(pkgconfig_paths ${all_deps})"
+  export CPPFLAGS="$(include_flags ${all_deps})"
+  export LDFLAGS="$(library_flags ${all_deps})"
   export CFLAGS="${CPPFLAGS}"
   export CXXFLAGS="${CPPFLAGS}"
 
-  cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX="${INSTALL_ROOT}" \
-    -DCMAKE_INSTALL_RPATH="@loader_path/../lib;@loader_path" \
-    -DBUILD_MERGED_PLUGINS=OFF \
-    -DENABLE_EXTERNAL_PLUGINS=ON \
-    -DBUILD_TEST=OFF
+  set -- -DCMAKE_BUILD_TYPE=Release "-DCMAKE_INSTALL_PREFIX=${INSTALL_ROOT}"
+  if [ -n "${cmake_args}" ]; then
+    old_ifs="${IFS}"
+    IFS='
+'
+    for arg in ${cmake_args}; do
+      set -- "$@" "${arg}"
+    done
+    IFS="${old_ifs}"
+  fi
+
+  cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" "$@"
   cmake --build "${BUILD_DIR}"
   cmake --install "${BUILD_DIR}"
 
@@ -267,6 +303,8 @@ RELEASE_TAG=${PACKAGE_TAG}
 ARTIFACT_NAME=${ARTIFACT_NAME}
 EOF
 }
+
+load_package_env
 
 case "${PACKAGE_NAME}" in
   librime)
