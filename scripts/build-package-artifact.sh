@@ -240,6 +240,41 @@ bundle_non_system_deps() {
   done
 }
 
+sign_macho_files() {
+  files="$(list_macho_files | sort -r)"
+  for file in ${files}; do
+    if ! otool -L "${file}" >/dev/null 2>&1; then
+      continue
+    fi
+    codesign --force --sign - "${file}" >/dev/null
+  done
+}
+
+verify_no_external_deps() {
+  failed=0
+  files="$(list_macho_files)"
+  for file in ${files}; do
+    if ! otool -L "${file}" >/dev/null 2>&1; then
+      continue
+    fi
+    deps="$(list_linked_deps "${file}")"
+    for dep in ${deps}; do
+      case "${dep}" in
+        /System/*|/usr/lib/*|@rpath/*|@loader_path/*|@executable_path/*)
+          ;;
+        *)
+          printf '%s\n' "unexpected external dependency: ${file} -> ${dep}" >&2
+          failed=1
+          ;;
+      esac
+    done
+  done
+
+  if [ "${failed}" -ne 0 ]; then
+    exit 1
+  fi
+}
+
 build_librime() {
   build_deps="$(metadata_lines build-depends | tr '\n' ' ')"
   runtime_deps="$(metadata_lines depends | tr '\n' ' ')"
@@ -292,6 +327,8 @@ build_librime() {
   cmake --install "${BUILD_DIR}"
 
   bundle_non_system_deps
+  sign_macho_files
+  verify_no_external_deps
 
   tar -czf "${ARTIFACT_DIR}/${ARTIFACT_NAME}" -C "${INSTALL_ROOT}" .
   /usr/bin/shasum -a 256 "${ARTIFACT_DIR}/${ARTIFACT_NAME}" > "${ARTIFACT_DIR}/${ARTIFACT_NAME}.sha256"
