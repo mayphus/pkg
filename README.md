@@ -200,22 +200,14 @@ The package recipe then downloads the release archive and copies that staged pre
 
 This repo includes:
 
-- [scripts/build-emacs-artifact.sh](/Users/mayphus/workspace/pkg/scripts/build-emacs-artifact.sh): builds a macOS arm64 Emacs artifact in prefix layout
-- [.github/workflows/build-emacs.yml](/Users/mayphus/workspace/pkg/.github/workflows/build-emacs.yml): workflow-dispatch build and release upload for Emacs
 - [scripts/build-package-artifact.sh](/Users/mayphus/workspace/pkg/scripts/build-package-artifact.sh): generic GitHub Actions package builder entrypoint for curated heavy packages
-- [.github/workflows/build-package.yml](/Users/mayphus/workspace/pkg/.github/workflows/build-package.yml): workflow-dispatch build and release upload for package prefix archives
+- [.github/workflows/build-package.yml](/Users/mayphus/workspace/pkg/.github/workflows/build-package.yml): `Build Artifacts`, the workflow-dispatch build and release upload path for package prefix archives
 
-Once a release asset exists and `PKG_RELEASE_REPO` is configured, Emacs can be installed with:
-
-```sh
-pkg install emacs
-```
-
-This repo currently uses the upstream `emacsformacosx.com` app distribution, not a repo-built `master` artifact.
+This repo currently uses GitHub-built prefix artifacts only for packages that do not require Apple signing or notarization. GUI app bundles should continue to use upstream distributions unless there is a clear signing story.
 
 For heavy native packages such as `librime`, the intended workflow is:
 
-1. Trigger the `Build Package Artifact` workflow in GitHub Actions for the package.
+1. Trigger the `Build Artifacts` workflow in GitHub Actions for the package.
 2. Let the workflow publish a release tag and a prefix archive plus `.sha256`.
 3. Run `pkg install <name>` locally to download and install that artifact.
 
