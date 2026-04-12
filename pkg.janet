@@ -49,6 +49,7 @@
 (def package-zsh-completions pkgdef/package-zsh-completions)
 (def package-man-pages pkgdef/package-man-pages)
 (def package-depends pkgdef/package-depends)
+(def package-build-depends pkgdef/package-build-depends)
 (def package-kind pkgdef/package-kind)
 (def package-by-name pkgdef/package-by-name)
 (def source-url install/source-url)
@@ -195,6 +196,8 @@
     (if (get (get pkg :source) :path)
       (print "path:    " (get (get pkg :source) :path)))
     (print "bins:    " (string/join (package-bins pkg) ", "))
+    (if (> (length (package-build-depends pkg)) 0)
+      (print "build-depends: " (string/join (package-build-depends pkg) ", ")))
     (if (> (length (package-depends pkg)) 0)
       (print "depends: " (string/join (package-depends pkg) ", ")))
     (if (get pkg :notes)
@@ -219,6 +222,8 @@
             (print "path:    " (get source :path))))
         (if pkg
           (do
+            (if (> (length (package-build-depends pkg)) 0)
+              (print "build-depends: " (string/join (package-build-depends pkg) ", ")))
             (if (> (length (package-depends pkg)) 0)
               (print "depends: " (string/join (package-depends pkg) ", ")))
             (if (get pkg :homepage)

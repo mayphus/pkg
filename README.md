@@ -23,6 +23,10 @@ This layout keeps binaries in one place and package payloads versioned under `op
 - `:url` packages for release archives
 - `:github-release` packages for repo-hosted release artifacts
 - `:git` packages for source builds
+- `:build-depends` for build-only toolchain requirements
+- `:depends` for runtime and link-time package requirements
+- `:resources` for staging extra source tarballs into the build tree
+- `:build-system :cmake` for dependency-aware CMake builds
 - shell-based build recipes with `PREFIX`, `SRC_DIR`, `BUILD_DIR`, `PKG_NAME`, and `PKG_VERSION`
 - package-managed zsh completions and man pages
 
@@ -175,6 +179,8 @@ This repo includes:
 
 - [scripts/build-emacs-artifact.sh](/Users/mayphus/workspace/pkg/scripts/build-emacs-artifact.sh): builds a macOS arm64 Emacs artifact in prefix layout
 - [.github/workflows/build-emacs.yml](/Users/mayphus/workspace/pkg/.github/workflows/build-emacs.yml): workflow-dispatch build and release upload for Emacs
+- [scripts/build-package-artifact.sh](/Users/mayphus/workspace/pkg/scripts/build-package-artifact.sh): generic GitHub Actions package builder entrypoint for curated heavy packages
+- [.github/workflows/build-package.yml](/Users/mayphus/workspace/pkg/.github/workflows/build-package.yml): workflow-dispatch build and release upload for package prefix archives
 
 Once a release asset exists and `PKG_RELEASE_REPO` is configured, Emacs can be installed with:
 
@@ -183,6 +189,14 @@ pkg install emacs
 ```
 
 This repo currently uses the upstream `emacsformacosx.com` app distribution, not a repo-built `master` artifact.
+
+For heavy native packages such as `librime`, the intended workflow is:
+
+1. Trigger the `Build Package Artifact` workflow in GitHub Actions for the package.
+2. Let the workflow publish a release tag and a prefix archive plus `.sha256`.
+3. Run `pkg install <name>` locally to download and install that artifact.
+
+`pkg install` should not trigger GitHub Actions. Build/publish and install are separate operations.
 
 ## Registry shape
 
@@ -201,6 +215,26 @@ Package definitions live in `packages.janet` as Janet data:
           "git clone --depth=1 https://github.com/janet-lang/jpm.git build/jpm"
           "PREFIX=\"$PREFIX\" JANET_MANPATH=\"$PREFIX/share/man/man1\" JANET_HEADERPATH=\"$PREFIX/include/janet\" JANET_BINPATH=\"$PREFIX/bin\" JANET_LIBPATH=\"$PREFIX/lib\" JANET_MODPATH=\"$PREFIX/lib/janet\" ./build/janet ./build/jpm/bootstrap.janet ./build/jpm-local-config.janet"]
   :bins ["janet" "jpm"]}
+```
+
+For dependency-aware native packages, the registry can also declare build-only tools, runtime deps, staged resources, and a first-class build system:
+
+```janet
+@{:name "librime"
+  :version "1.16.1"
+  :source @{:type :git
+            :url "https://github.com/rime/librime.git"
+            :ref "1.16.1"}
+  :build-depends ["cmake" "pkgconf"]
+  :depends ["leveldb" "opencc" "yaml-cpp"]
+  :build-system :cmake
+  :cmake-args ["-DBUILD_TEST=OFF"]
+  :resources [@{:name "plugin"
+                :url "https://example.invalid/plugin.tar.gz"
+                :archive :tar.gz
+                :strip-components 1
+                :sha256 "..."
+                :path "plugins/plugin"}]}
 ```
 
 ## Practical limits

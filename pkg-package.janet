@@ -29,6 +29,21 @@
   (or (get pkg :depends)
       @[]))
 
+(defn package-build-depends [pkg]
+  (or (get pkg :build-depends)
+      @[]))
+
+(defn package-build-system [pkg]
+  (get pkg :build-system))
+
+(defn package-cmake-args [pkg]
+  (or (get pkg :cmake-args)
+      @[]))
+
+(defn package-resources [pkg]
+  (or (get pkg :resources)
+      @[]))
+
 (defn package-kind [pkg]
   (or (get pkg :kind)
       (if (> (length (package-apps pkg)) 0)

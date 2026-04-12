@@ -39,6 +39,28 @@
       (get source :file)
       (path/basename (source-url source))))
 
+(defn source-sha256-file-name [source]
+  (let [value (get source :sha256-file)]
+    (if value
+      (if (= true value)
+        (string (source-file-name source) ".sha256")
+        value)
+      nil)))
+
+(defn source-sha256-url [source]
+  (let [file-name (source-sha256-file-name source)]
+    (if file-name
+      (case (get source :type)
+        :url (path/fail "sha256-file is not supported for :url sources")
+        :github-release
+        (let [repo (or (get source :repo)
+                       (self/configured-release-repo))]
+          (if repo
+            (string "https://github.com/" repo "/releases/download/" (get source :tag) "/" file-name)
+            (path/fail "no release repo configured; set PKG_RELEASE_REPO or ~/.config/pkg/release-repo")))
+        nil)
+      nil)))
+
 (defn source-downloadable? [source]
   (let [source-type (get source :type)]
     (or (= :url source-type)
@@ -48,17 +70,47 @@
   (or (get source :integrity)
       :required))
 
+(defn expected-source-sha256 [source]
+  (or (get source :sha256)
+      (let [sha-url (source-sha256-url source)]
+        (if sha-url
+          (let [sha-path (path/join-path (path/cache-dir) (source-sha256-file-name source))]
+            (path/run ["/usr/bin/curl" "-fsSL" sha-url "-o" sha-path])
+            (first (string/split " " (string/trim (slurp sha-path)))))
+          nil))))
+
 (defn package-missing-sha256? [pkg]
   (let [source (get pkg :source)]
     (and (source-downloadable? source)
          (= :required (source-integrity-policy source))
-         (= nil (get source :sha256)))))
+         (= nil (get source :sha256))
+         (= nil (get source :sha256-file)))))
 
 (defn package-unverified-download? [pkg]
   (let [source (get pkg :source)]
     (and (source-downloadable? source)
          (not (= :required (source-integrity-policy source)))
          (= nil (get source :sha256)))))
+
+(defn unique-strings [values]
+  (let [seen @{}
+        out @[]]
+    (each value values
+      (if (and value
+               (not (= value ""))
+               (not (get seen value)))
+        (do
+          (put seen value true)
+          (array/push out value))))
+    out))
+
+(defn package-all-depends [pkg]
+  (let [all @[]]
+    (each dep-name (pkgdef/package-build-depends pkg)
+      (array/push all dep-name))
+    (each dep-name (pkgdef/package-depends pkg)
+      (array/push all dep-name))
+    (unique-strings all)))
 
 (defn expected-bin-target [pkg bin-name]
   (let [source (get pkg :source)]
@@ -103,6 +155,8 @@
     (put out :ref (get source :ref)))
   (if (get source :sha256)
     (put out :sha256 (get source :sha256)))
+  (if (get source :sha256-file)
+    (put out :sha256-file (get source :sha256-file)))
   out)
 
 (defn write-manifest [pkg]
@@ -230,6 +284,21 @@
       (path/run ["/bin/rm" "-rf" work]))
     (path/run ["/bin/mkdir" "-p" work])))
 
+(defn extract-archive [archive-path dest-dir archive-name archive-type strip-components]
+  (case archive-type
+    :tar.gz (do
+              (path/run ["/bin/mkdir" "-p" dest-dir])
+              (path/run ["/usr/bin/tar" "-xzf" archive-path "-C" dest-dir "--strip-components" (string strip-components)]))
+    :tar.xz (do
+              (path/run ["/bin/mkdir" "-p" dest-dir])
+              (path/run ["/usr/bin/tar" "-xJf" archive-path "-C" dest-dir "--strip-components" (string strip-components)]))
+    :zip (do
+            (path/run ["/bin/mkdir" "-p" dest-dir])
+            (path/run ["/usr/bin/unzip" "-q" archive-path "-d" dest-dir]))
+    :dmg (path/copy-file archive-path (path/join-path dest-dir archive-name))
+    :pkg (path/run ["/usr/sbin/pkgutil" "--expand-full" archive-path dest-dir])
+    (path/fail (string "unsupported archive type: " archive-type))))
+
 (defn fetch-url-source [pkg]
   (let [source (get pkg :source)
         archive-url (source-url source)
@@ -238,27 +307,43 @@
         src-dir (state/package-source-dir pkg)
         strip-components (or (get source :strip-components) 0)]
     (path/run ["/usr/bin/curl" "-L" archive-url "-o" archive-path])
-    (ensure-sha256 archive-path (get source :sha256))
-    (case (get source :archive)
-      :tar.gz (do
-                (path/run ["/bin/mkdir" "-p" src-dir])
-                (path/run ["/usr/bin/tar" "-xzf" archive-path "-C" src-dir "--strip-components" (string strip-components)]))
-      :tar.xz (do
-                (path/run ["/bin/mkdir" "-p" src-dir])
-                (path/run ["/usr/bin/tar" "-xJf" archive-path "-C" src-dir "--strip-components" (string strip-components)]))
-      :zip (do
-              (path/run ["/bin/mkdir" "-p" src-dir])
-              (path/run ["/usr/bin/unzip" "-q" archive-path "-d" src-dir]))
-      :dmg (path/copy-file archive-path (path/join-path src-dir archive-name))
-      :pkg (path/run ["/usr/sbin/pkgutil" "--expand-full" archive-path src-dir])
-      (path/fail (string "unsupported archive type: " (get source :archive))))))
+    (ensure-sha256 archive-path (expected-source-sha256 source))
+    (extract-archive archive-path src-dir archive-name (get source :archive) strip-components)))
 
 (defn fetch-git-source [pkg]
   (let [source (get pkg :source)
-        src-dir (state/package-source-dir pkg)]
-    (path/run ["git" "clone" "--depth" "1" (get source :url) src-dir])
-    (if (get source :ref)
-      (path/run ["git" "-C" src-dir "checkout" (get source :ref)]))))
+        src-dir (state/package-source-dir pkg)
+        ref (get source :ref)]
+    (if ref
+      (path/run ["git" "clone" "--depth" "1" "--branch" ref (get source :url) src-dir])
+      (path/run ["git" "clone" "--depth" "1" (get source :url) src-dir]))))
+
+(defn resource-file-name [resource]
+  (or (get resource :file-name)
+      (path/basename (get resource :url))))
+
+(defn resource-cache-path [pkg resource]
+  (path/join-path (path/cache-dir)
+                  (string (get pkg :name) "-"
+                          (get pkg :version) "-"
+                          (or (get resource :name) (resource-file-name resource)))))
+
+(defn stage-resource [pkg resource]
+  (let [archive-path (resource-cache-path pkg resource)
+        dest-path (path/join-path (state/package-source-dir pkg) (get resource :path))]
+    (path/run ["/usr/bin/curl" "-L" (get resource :url) "-o" archive-path])
+    (ensure-sha256 archive-path (get resource :sha256))
+    (if (os/stat dest-path)
+      (path/run ["/bin/rm" "-rf" dest-path]))
+    (extract-archive archive-path
+                     dest-path
+                     (resource-file-name resource)
+                     (get resource :archive)
+                     (or (get resource :strip-components) 0))))
+
+(defn stage-package-resources [pkg]
+  (each resource (pkgdef/package-resources pkg)
+    (stage-resource pkg resource)))
 
 (defn installed-current-version? [name]
   (let [pkg (pkgdef/package-by-name name)]
@@ -268,10 +353,19 @@
   (> (length (state/installed-package-versions name)) 0))
 
 (defn ensure-package-dependencies [pkg]
-  (let [missing @[]]
-    (each dep-name (pkgdef/package-depends pkg)
-      (if (not (installed-current-version? dep-name))
-        (array/push missing dep-name)))
+  (let [missing @[]
+        unknown @[]]
+    (each dep-name (package-all-depends pkg)
+      (let [dep-pkg (get reg/packages dep-name)]
+        (if dep-pkg
+          (if (not (installed-current-version? dep-name))
+            (array/push missing dep-name))
+          (array/push unknown dep-name))))
+    (if (> (length unknown) 0)
+      (path/fail (string "unknown dependencies for "
+                    (get pkg :name)
+                    ": "
+                    (string/join unknown ", "))))
     (if (> (length missing) 0)
       (path/fail (string "missing dependencies for "
                     (get pkg :name)
@@ -294,6 +388,9 @@
   (or (get pkg :copy-paths)
       @[]))
 
+(defn package-build-system [pkg]
+  (pkgdef/package-build-system pkg))
+
 (defn install-copy-path [pkg entry]
   (let [source-path (path/join-path (state/package-source-dir pkg) (get entry :from))
         dest-path (path/join-path (state/package-install-dir pkg) (get entry :to))]
@@ -305,6 +402,18 @@
 
 (defn install-copy-tree [pkg]
   (path/run-shell "cd \"$SRC_DIR\" && tar -cf - . | tar -xf - -C \"$PREFIX\"" (state/package-env pkg)))
+
+(defn run-cmake-build-system [pkg]
+  (let [env (state/package-env pkg)
+        build-dir (path/join-path (state/package-build-dir pkg) "cmake-build")
+        args @["-DCMAKE_BUILD_TYPE=Release"
+               (string "-DCMAKE_INSTALL_PREFIX=" (state/package-install-dir pkg))]]
+    (each arg (pkgdef/package-cmake-args pkg)
+      (array/push args arg))
+    (path/run ["/bin/mkdir" "-p" build-dir])
+    (path/run-shell (string "cmake -S \"$SRC_DIR\" -B \"" build-dir "\" " (string/join args " ")) env)
+    (path/run-shell (string "cmake --build \"" build-dir "\"") env)
+    (path/run-shell (string "cmake --install \"" build-dir "\"") env)))
 
 (defn run-install-mode [pkg]
   (case (package-install-mode pkg)
@@ -319,12 +428,20 @@
     (each command (package-phase-commands pkg phase)
       (path/run-shell (string "cd \"$SRC_DIR\" && " command) env))))
 
+(defn run-build-system [pkg]
+  (case (package-build-system pkg)
+    :cmake (run-cmake-build-system pkg)
+    (path/fail (string "unsupported build system: " (package-build-system pkg)))))
+
 (defn run-package-phases [pkg]
   (path/run ["/bin/mkdir" "-p" (path/join-path (state/package-install-dir pkg) "bin")])
-  (run-package-phase pkg :build)
-  (if (package-install-mode pkg)
-    (run-install-mode pkg)
-    (run-package-phase pkg :install))
+  (if (package-build-system pkg)
+    (run-build-system pkg)
+    (do
+      (run-package-phase pkg :build)
+      (if (package-install-mode pkg)
+        (run-install-mode pkg)
+        (run-package-phase pkg :install))))
   (run-package-phase pkg :post-install))
 
 (defn print-package-assets-plan [pkg]
@@ -335,7 +452,11 @@
   (each entry (pkgdef/package-man-pages pkg)
     (print "  man page: " (asset-source-path pkg (get entry :path))
            " -> "
-           (path/join-path (path/man1-dir) (get entry :name)))))
+           (path/join-path (path/man1-dir) (get entry :name))))
+  (each resource (pkgdef/package-resources pkg)
+    (print "  resource: " (get resource :url)
+           " -> "
+           (path/join-path (state/package-source-dir pkg) (get resource :path)))))
 
 (defn dry-run-install-package [name]
   (let [pkg (pkgdef/package-by-name name)
@@ -350,10 +471,16 @@
     (if (get source :path)
       (print "  source path: " (path/expand-project-path (get source :path))))
     (print "  prefix: " target)
+    (if (> (length (pkgdef/package-build-depends pkg)) 0)
+      (print "  build depends: " (string/join (pkgdef/package-build-depends pkg) ", ")))
+    (if (> (length (pkgdef/package-depends pkg)) 0)
+      (print "  depends: " (string/join (pkgdef/package-depends pkg) ", ")))
     (if (= :link (get source :type))
       (print "  mode: link")
       (do
         (print "  build dir: " (state/package-build-dir pkg))
+        (if (package-build-system pkg)
+          (print "  build system: " (package-build-system pkg)))
         (if (package-install-mode pkg)
           (print "  install mode: " (package-install-mode pkg)))
         (each phase [:build :install :post-install :post-expose]
@@ -412,6 +539,7 @@
           :github-release (fetch-url-source pkg)
           :git (fetch-git-source pkg)
           (path/fail (string "unsupported source type: " (get source :type))))
+        (stage-package-resources pkg)
         (run-package-phases pkg)
         (install-package-apps pkg)
         (install-package-assets pkg)

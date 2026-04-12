@@ -1,0 +1,50 @@
+name: Build Package Artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package name to build
+        required: true
+        type: choice
+        options:
+          - librime
+
+permissions:
+  contents: write
+
+jobs:
+  build-package:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build package prefix artifact
+        run: |
+          chmod 755 scripts/build-package-artifact.sh
+          scripts/build-package-artifact.sh "${{ inputs.package }}"
+
+      - name: Load release metadata
+        id: meta
+        run: |
+          . dist/release-metadata.env
+          echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "artifact=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact }}
+          path: |
+            dist/${{ steps.meta.outputs.artifact }}
+            dist/${{ steps.meta.outputs.artifact }}.sha256
+
+      - name: Publish release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          files: |
+            dist/${{ steps.meta.outputs.artifact }}
+            dist/${{ steps.meta.outputs.artifact }}.sha256
+          generate_release_notes: true

@@ -396,6 +396,21 @@
                :path "Applications/FreeCAD.app"}]
       :notes "Installs the official FreeCAD 1.1.0 Apple Silicon macOS app into ~/Applications."}
 
+    "librime"
+    @{:name "librime"
+      :kind :runtime
+      :version "1.16.1"
+      :homepage "https://rime.im/"
+      :license "BSD-3-Clause"
+      :source @{:type :github-release
+                :repo "mayphus/pkg"
+                :tag "pkg-librime-1.16.1"
+                :file "librime-1.16.1-darwin-arm64-prefix.tar.gz"
+                :sha256-file true
+                :archive :tar.gz}
+      :install-mode :copy-tree
+      :notes "Installs the GitHub Actions-built macOS arm64 librime prefix artifact. Build publishing is separate from local installs: run the Build Package Artifact workflow for librime first, then install locally."}
+
     "rime"
     @{:name "rime"
       :kind :app
