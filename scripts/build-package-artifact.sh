@@ -49,7 +49,7 @@ download_and_extract() {
 
 load_package_env() {
   meta_file="${WORK_ROOT}/package-env.tsv"
-  janet scripts/package-build-meta.janet env "${PACKAGE_NAME}" > "${meta_file}"
+  ./bin/pkg build-meta env "${PACKAGE_NAME}" > "${meta_file}"
   while IFS="$(printf '\t')" read -r key value; do
     [ -n "${key}" ] || continue
     export "${key}=${value}"
@@ -58,7 +58,7 @@ load_package_env() {
 
 metadata_lines() {
   kind="$1"
-  janet scripts/package-build-meta.janet "${kind}" "${PACKAGE_NAME}"
+  ./bin/pkg build-meta "${kind}" "${PACKAGE_NAME}"
 }
 
 brew_prefixes() {

@@ -340,6 +340,51 @@
           (print "revision:" " " (get meta :revision))))
       (print "source:  unknown"))))
 
+(defn ci-meta [pkg]
+  (or (get pkg :ci)
+      (fail (string "package has no ci metadata: " (get pkg :name)))))
+
+(defn artifact-meta [pkg]
+  (or (get pkg :artifact)
+      (fail (string "package has no artifact metadata: " (get pkg :name)))))
+
+(defn print-build-meta-pair [key value]
+  (print key "\t" (string value)))
+
+(defn command-build-meta [subcommand name]
+  (let [pkg (package-by-name name)]
+    (case subcommand
+      "env" (let [ci (ci-meta pkg)
+                  artifact (artifact-meta pkg)
+                  source (or (get ci :source)
+                             (fail (string "package has no ci source metadata: " (get pkg :name))))]
+              (print-build-meta-pair "PACKAGE_NAME" (get pkg :name))
+              (print-build-meta-pair "PACKAGE_VERSION" (get pkg :version))
+              (print-build-meta-pair "ARTIFACT_TAG" (get artifact :tag))
+              (print-build-meta-pair "ARTIFACT_NAME" (get artifact :file))
+              (print-build-meta-pair "CI_PROVIDER" (string (get ci :provider)))
+              (print-build-meta-pair "CI_BUILDER" (string (get ci :builder)))
+              (print-build-meta-pair "CI_SOURCE_TYPE" (string (get source :type)))
+              (print-build-meta-pair "CI_SOURCE_URL" (get source :url))
+              (if (get source :ref)
+                (print-build-meta-pair "CI_SOURCE_REF" (get source :ref)))
+              (if (get source :revision)
+                (print-build-meta-pair "CI_SOURCE_REVISION" (get source :revision))))
+      "build-depends" (each dep (or (get (ci-meta pkg) :build-depends) @[])
+                        (print dep))
+      "depends" (each dep (or (get (ci-meta pkg) :depends) @[])
+                  (print dep))
+      "resources" (each resource (or (get (ci-meta pkg) :resources) @[])
+                    (print (string/join
+                             [(or (get resource :name) "")
+                              (or (get resource :url) "")
+                              (or (get resource :sha256) "")
+                              (or (get resource :path) "")]
+                             "\t")))
+      "cmake-args" (each arg (or (get (ci-meta pkg) :cmake-args) @[])
+                      (print arg))
+      (fail (string "unknown build-meta subcommand: " subcommand)))))
+
 (defn main [& argv]
   (let [args (tuple/slice argv 1)
         command (get args 0)]
@@ -391,4 +436,7 @@
       "doctor" (command-doctor)
       "audit" (command-audit)
       "version" (command-version)
+      "build-meta" (if (and (get args 1) (get args 2))
+                     (command-build-meta (get args 1) (get args 2))
+                     (fail "build-meta requires a subcommand and package name"))
       (help/usage))))
