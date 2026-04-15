@@ -52,13 +52,13 @@
     "codex"
     @{:name "codex"
       :kind :cli
-      :version "0.120.0"
+      :version "0.121.0"
       :homepage "https://github.com/openai/codex"
       :license "Apache-2.0"
       :source @{:type :url
-                :url "https://github.com/openai/codex/releases/download/rust-v0.120.0/codex-aarch64-apple-darwin.tar.gz"
+                :url "https://github.com/openai/codex/releases/download/rust-v0.121.0/codex-aarch64-apple-darwin.tar.gz"
                 :archive :tar.gz
-                :sha256 "b1083c438b752fa292057fb8c735f58d1323144a3deb9e5742c4e845152c95f0"}
+                :sha256 "60f7039e63a7de8ae474136ac6f593ec1a913e1ddca0df59ade1f6d6eb5f7fd0"}
       :install-mode :copy-paths
       :copy-paths [@{:from "codex-aarch64-apple-darwin"
                      :to "bin/codex"
@@ -310,13 +310,13 @@
     "uv"
     @{:name "uv"
       :kind :tool
-      :version "0.11.6"
+      :version "0.11.7"
       :homepage "https://github.com/astral-sh/uv"
       :license "Apache-2.0/MIT"
       :source @{:type :url
-                :url "https://github.com/astral-sh/uv/releases/download/0.11.6/uv-aarch64-apple-darwin.tar.gz"
+                :url "https://github.com/astral-sh/uv/releases/download/0.11.7/uv-aarch64-apple-darwin.tar.gz"
                 :archive :tar.gz
-                :sha256 "4b69a4e366ec38cd5f305707de95e12951181c448679a00dce2a78868dfc9f5b"}
+                :sha256 "66e37d91f839e12481d7b932a1eccbfe732560f42c1cfb89faddfa2454534ba8"}
       :install-mode :copy-paths
       :copy-paths [@{:from "uv-aarch64-apple-darwin/uv"
                      :to "bin/uv"
