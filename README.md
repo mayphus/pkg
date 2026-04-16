@@ -61,6 +61,23 @@ This is intentionally simple. There is no dependency solver, no bottle system, n
 - `packages.janet`: package registry
 - `bin/pkg`: wrapper so the tool always runs from the project root
 - `examples/hello-local`: minimal local package used for smoke testing
+- `homebrew-deprecated.janet`: generated snapshot of deprecated Homebrew formulae and casks plus current totals
+- `scripts/update-homebrew-deprecated.janet`: refreshes `homebrew-deprecated.janet` from the live Homebrew APIs
+
+## Homebrew Snapshot
+
+Refresh the generated Homebrew deprecation snapshot with:
+
+```sh
+janet scripts/update-homebrew-deprecated.janet
+```
+
+That rewrites `homebrew-deprecated.janet` with:
+
+- total formulae and deprecated formulae
+- total casks and deprecated casks
+- total packages and overall deprecation percentage
+- the full sorted list of deprecated formula names and cask tokens
 
 ## Commands
 
