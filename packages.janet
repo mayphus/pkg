@@ -142,6 +142,23 @@
                      :path "man/man1/pyenv.1"}]
       :notes "Installs pyenv as a self-contained tree under ~/.local/opt while keeping PYENV_ROOT at the default ~/.pyenv unless you override it."}
 
+    "cabal-install"
+    @{:name "cabal-install"
+      :kind :cli
+      :version "3.16.1.0"
+      :homepage "https://www.haskell.org/cabal/"
+      :license "BSD-3-Clause"
+      :source @{:type :url
+                :url "https://downloads.haskell.org/~cabal/cabal-install-3.16.1.0/cabal-install-3.16.1.0-aarch64-darwin.tar.xz"
+                :archive :tar.xz
+                :sha256 "e02f4561fbce72b198a3c6c81b9f211f9c7cbf40c073f8f2ee59f835dd1dd502"}
+      :install-mode :copy-paths
+      :copy-paths [@{:from "cabal"
+                     :to "bin/cabal"
+                     :mode "755"}]
+      :bins ["cabal"]
+      :notes "Installs the official prebuilt cabal-install Apple Silicon macOS binary from Haskell upstream."}
+
     "gemini"
     @{:name "gemini"
       :kind :tool
