@@ -84,6 +84,47 @@
       :bins ["kubectl"]
       :notes "Installs the official Kubernetes kubectl Apple Silicon macOS binary release."}
 
+    "android-platform-tools"
+    @{:name "android-platform-tools"
+      :kind :cli
+      :version "37.0.0"
+      :homepage "https://developer.android.com/tools/releases/platform-tools"
+      :license "Android SDK License"
+      :source @{:type :url
+                :url "https://dl.google.com/android/repository/platform-tools_r37.0.0-darwin.zip"
+                :archive :zip
+                :sha256 "48ac88ab066da4939f8232c451173b1e1295f9e5d248ee50b89b495b39b7f79f"}
+      :install-mode :copy-paths
+      :copy-paths [@{:from "platform-tools/adb"
+                     :to "bin/adb"
+                     :mode "755"}
+                   @{:from "platform-tools/etc1tool"
+                     :to "bin/etc1tool"
+                     :mode "755"}
+                   @{:from "platform-tools/fastboot"
+                     :to "bin/fastboot"
+                     :mode "755"}
+                   @{:from "platform-tools/hprof-conv"
+                     :to "bin/hprof-conv"
+                     :mode "755"}
+                   @{:from "platform-tools/make_f2fs"
+                     :to "bin/make_f2fs"
+                     :mode "755"}
+                   @{:from "platform-tools/make_f2fs_casefold"
+                     :to "bin/make_f2fs_casefold"
+                     :mode "755"}
+                   @{:from "platform-tools/mke2fs"
+                     :to "bin/mke2fs"
+                     :mode "755"}]
+      :bins ["adb"
+             "etc1tool"
+             "fastboot"
+             "hprof-conv"
+             "make_f2fs"
+             "make_f2fs_casefold"
+             "mke2fs"]
+      :notes "Installs the Android SDK Platform-Tools CLI bundle from Google's official macOS release archive."}
+
     "gemini"
     @{:name "gemini"
       :kind :tool
