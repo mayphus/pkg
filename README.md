@@ -107,13 +107,13 @@ From the public repo, Homebrew-style:
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/mayphus/pkg/main/install.sh)"
 ```
 
-`install.sh` is now a thin bootstrap installer. It bootstraps Janet locally, then fetches `bin/pkg`, `pkg.janet`, and `packages.janet` from this repo. When run from a local checkout, it copies those files from disk instead of downloading them.
+`install.sh` is now a thin bootstrap installer. It bootstraps Janet locally, then fetches the managed runtime file set from this repo using [`pkg-runtime-files.txt`](pkg-runtime-files.txt). When run from a local checkout, it copies that same runtime file set from disk instead of downloading it.
 
 The installer does three things:
 
 - checks for macOS Command Line Tools and prompts to install them first if needed
 - bootstraps Janet and `jpm` into `~/.local/opt/janet/<version>` and relinks `~/.local/bin/janet`
-- installs or refreshes the `pkg` wrapper and Janet sources into `~/.local/bin/pkg` and `~/.local/share/pkg/lib`
+- installs or refreshes the `pkg` wrapper, Janet sources, and package recipe tree into `~/.local/bin/pkg` and `~/.local/share/pkg/lib`
 
 After that, `pkg` should work directly from your shell as long as `~/.local/bin` is on `PATH`.
 
@@ -134,7 +134,7 @@ export MANPATH="$HOME/.local/share/man:${MANPATH:-}"
 Running `install.sh` again is allowed. Treat it as a bootstrap-style update:
 
 - it does not reject an existing install
-- it refreshes `~/.local/bin/pkg`, `pkg.janet`, and `packages.janet`
+- it refreshes the full managed `pkg` runtime under `~/.local/bin/pkg` and `~/.local/share/pkg/lib`
 - it refreshes the zsh completion at `~/.local/share/pkg/completions/zsh/_pkg`
 - it refreshes the manual page at `~/.local/share/man/man1/pkg.1`
 - it keeps using the existing Janet install if the requested Janet version is already present

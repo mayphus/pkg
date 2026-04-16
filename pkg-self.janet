@@ -44,136 +44,93 @@
         ref (configured-bootstrap-ref)]
     (path/capture-command ["git" "ls-remote" (string "https://github.com/" repo ".git") ref])))
 
+(def runtime-manifest-file "pkg-runtime-files.txt")
+
+(defn string-prefix? [prefix value]
+  (and value
+       (>= (length value) (length prefix))
+       (= prefix (string/slice value 0 (length prefix)))))
+
+(defn string-suffix? [suffix value]
+  (and value
+       (>= (length value) (length suffix))
+       (= suffix (string/slice value (- (length value) (length suffix))))))
+
+(defn runtime-relative-paths [manifest-file]
+  (let [paths @[]]
+    (each raw (string/split "\n" (slurp manifest-file))
+      (let [line (string/trim raw)]
+        (if (and (not (= line ""))
+                 (not (string-prefix? "#" line)))
+          (array/push paths line))))
+    paths))
+
+(defn runtime-destination-path [rel]
+  (cond
+    (string-prefix? "bin/" rel)
+    (path/join-path (path/package-root) rel)
+
+    (string-prefix? "completions/" rel)
+    (path/join-path (path/share-dir) rel)
+
+    (string-prefix? "man/" rel)
+    (path/join-path (path/package-root) "share" rel)
+
+    (string-prefix? "packages/" rel)
+    (path/join-path (path/lib-dir) rel)
+
+    (string-suffix? ".janet" rel)
+    (path/join-path (path/lib-dir) rel)
+
+    true
+    (path/fail (string "unsupported pkg runtime path: " rel))))
+
+(defn install-runtime-files [source-root manifest-file]
+  (each rel (runtime-relative-paths manifest-file)
+    (let [src (path/join-path source-root rel)
+          dest (runtime-destination-path rel)]
+      (if (not (os/stat src))
+        (path/fail (string "missing pkg runtime file at " src)))
+      (path/copy-file src dest)
+      (if (= rel "bin/pkg")
+        (path/run ["/bin/chmod" "755" dest])))))
+
+(defn reset-managed-runtime-layout []
+  (let [packages-dir (path/join-path (path/lib-dir) "packages")]
+    (if (os/stat packages-dir)
+      (path/run ["/bin/rm" "-rf" packages-dir]))))
+
 (defn install-self-files [source-root]
   (let [resolved (path/expand-project-path source-root)
-        wrapper-src (path/join-path resolved "bin" "pkg")
-        cli-src (path/join-path resolved "pkg.janet")
-        help-src (path/join-path resolved "pkg-help.janet")
-        paths-src (path/join-path resolved "pkg-paths.janet")
-        package-src (path/join-path resolved "pkg-package.janet")
-        install-src (path/join-path resolved "pkg-install.janet")
-        manifest-src (path/join-path resolved "pkg-manifest.janet")
-        state-src (path/join-path resolved "pkg-state.janet")
-        self-src (path/join-path resolved "pkg-self.janet")
-        registry-src (path/join-path resolved "packages.janet")
-        zsh-completion-src (path/join-path resolved "completions" "zsh" "_pkg")
-        man-src (path/join-path resolved "man" "man1" "pkg.1")
-        wrapper-dest (path/join-path (path/bin-dir) "pkg")
-        cli-dest (path/join-path (path/lib-dir) "pkg.janet")
-        help-dest (path/join-path (path/lib-dir) "pkg-help.janet")
-        paths-dest (path/join-path (path/lib-dir) "pkg-paths.janet")
-        package-dest (path/join-path (path/lib-dir) "pkg-package.janet")
-        install-dest (path/join-path (path/lib-dir) "pkg-install.janet")
-        manifest-dest (path/join-path (path/lib-dir) "pkg-manifest.janet")
-        state-dest (path/join-path (path/lib-dir) "pkg-state.janet")
-        self-dest (path/join-path (path/lib-dir) "pkg-self.janet")
-        registry-dest (path/join-path (path/lib-dir) "packages.janet")
-        zsh-completion-dest (path/join-path (path/zsh-completions-dir) "_pkg")
-        man-dest (path/join-path (path/man1-dir) "pkg.1")]
-    (if (not (os/stat wrapper-src))
-      (path/fail (string "missing pkg wrapper at " wrapper-src)))
-    (if (not (os/stat cli-src))
-      (path/fail (string "missing pkg CLI at " cli-src)))
-    (if (not (os/stat help-src))
-      (path/fail (string "missing pkg help at " help-src)))
-    (if (not (os/stat paths-src))
-      (path/fail (string "missing pkg paths at " paths-src)))
-    (if (not (os/stat package-src))
-      (path/fail (string "missing pkg package at " package-src)))
-    (if (not (os/stat install-src))
-      (path/fail (string "missing pkg install at " install-src)))
-    (if (not (os/stat manifest-src))
-      (path/fail (string "missing pkg manifest at " manifest-src)))
-    (if (not (os/stat state-src))
-      (path/fail (string "missing pkg state at " state-src)))
-    (if (not (os/stat self-src))
-      (path/fail (string "missing pkg self at " self-src)))
-    (if (not (os/stat registry-src))
-      (path/fail (string "missing pkg registry at " registry-src)))
-    (if (not (os/stat zsh-completion-src))
-      (path/fail (string "missing pkg zsh completion at " zsh-completion-src)))
-    (if (not (os/stat man-src))
-      (path/fail (string "missing pkg man page at " man-src)))
-    (path/copy-file wrapper-src wrapper-dest)
-    (path/run ["/bin/chmod" "755" wrapper-dest])
-    (path/copy-file cli-src cli-dest)
-    (path/copy-file help-src help-dest)
-    (path/copy-file paths-src paths-dest)
-    (path/copy-file package-src package-dest)
-    (path/copy-file install-src install-dest)
-    (path/copy-file manifest-src manifest-dest)
-    (path/copy-file state-src state-dest)
-    (path/copy-file self-src self-dest)
-    (path/copy-file registry-src registry-dest)
-    (path/copy-file zsh-completion-src zsh-completion-dest)
-    (path/copy-file man-src man-dest)
+        runtime-manifest-src (path/join-path resolved runtime-manifest-file)]
+    (if (not (os/stat runtime-manifest-src))
+      (path/fail (string "missing pkg runtime manifest at " runtime-manifest-src)))
+    (reset-managed-runtime-layout)
+    (install-runtime-files resolved runtime-manifest-src)
     (spit (path/self-source-file) (string resolved "\n"))
     (write-self-meta @{:source :local
                        :root resolved
                        :revision (git-head-revision resolved)})
-    (print "installed pkg into " wrapper-dest)))
+    (print "installed pkg into " (path/join-path (path/bin-dir) "pkg"))))
 
 (defn install-self-files-from-remote []
   (let [repo (configured-bootstrap-repo)
         ref (configured-bootstrap-ref)
         base-url (string "https://raw.githubusercontent.com/" repo "/" ref)
         tmp-dir (path/join-path (path/build-root) "pkg-self-update")
-        wrapper-src (path/join-path tmp-dir "bin" "pkg")
-        cli-src (path/join-path tmp-dir "pkg.janet")
-        help-src (path/join-path tmp-dir "pkg-help.janet")
-        paths-src (path/join-path tmp-dir "pkg-paths.janet")
-        package-src (path/join-path tmp-dir "pkg-package.janet")
-        install-src (path/join-path tmp-dir "pkg-install.janet")
-        manifest-src (path/join-path tmp-dir "pkg-manifest.janet")
-        state-src (path/join-path tmp-dir "pkg-state.janet")
-        self-src (path/join-path tmp-dir "pkg-self.janet")
-        registry-src (path/join-path tmp-dir "packages.janet")
-        zsh-completion-src (path/join-path tmp-dir "completions" "zsh" "_pkg")
-        man-src (path/join-path tmp-dir "man" "man1" "pkg.1")
-        wrapper-dest (path/join-path (path/bin-dir) "pkg")
-        cli-dest (path/join-path (path/lib-dir) "pkg.janet")
-        help-dest (path/join-path (path/lib-dir) "pkg-help.janet")
-        paths-dest (path/join-path (path/lib-dir) "pkg-paths.janet")
-        package-dest (path/join-path (path/lib-dir) "pkg-package.janet")
-        install-dest (path/join-path (path/lib-dir) "pkg-install.janet")
-        manifest-dest (path/join-path (path/lib-dir) "pkg-manifest.janet")
-        state-dest (path/join-path (path/lib-dir) "pkg-state.janet")
-        self-dest (path/join-path (path/lib-dir) "pkg-self.janet")
-        registry-dest (path/join-path (path/lib-dir) "packages.janet")
-        zsh-completion-dest (path/join-path (path/zsh-completions-dir) "_pkg")
-        man-dest (path/join-path (path/man1-dir) "pkg.1")]
+        runtime-manifest-src (path/join-path tmp-dir runtime-manifest-file)]
     (path/run ["/bin/rm" "-rf" tmp-dir])
-    (path/run ["/bin/mkdir" "-p"
-               (path/join-path tmp-dir "bin")
-               (path/join-path tmp-dir "completions" "zsh")
-               (path/join-path tmp-dir "man" "man1")])
-    (path/download-file (string base-url "/bin/pkg") wrapper-src)
-    (path/download-file (string base-url "/pkg.janet") cli-src)
-    (path/download-file (string base-url "/pkg-help.janet") help-src)
-    (path/download-file (string base-url "/pkg-paths.janet") paths-src)
-    (path/download-file (string base-url "/pkg-package.janet") package-src)
-    (path/download-file (string base-url "/pkg-install.janet") install-src)
-    (path/download-file (string base-url "/pkg-manifest.janet") manifest-src)
-    (path/download-file (string base-url "/pkg-state.janet") state-src)
-    (path/download-file (string base-url "/pkg-self.janet") self-src)
-    (path/download-file (string base-url "/packages.janet") registry-src)
-    (path/download-file (string base-url "/completions/zsh/_pkg") zsh-completion-src)
-    (path/download-file (string base-url "/man/man1/pkg.1") man-src)
-    (path/copy-file wrapper-src wrapper-dest)
-    (path/run ["/bin/chmod" "755" wrapper-dest])
-    (path/copy-file cli-src cli-dest)
-    (path/copy-file help-src help-dest)
-    (path/copy-file paths-src paths-dest)
-    (path/copy-file package-src package-dest)
-    (path/copy-file install-src install-dest)
-    (path/copy-file manifest-src manifest-dest)
-    (path/copy-file state-src state-dest)
-    (path/copy-file self-src self-dest)
-    (path/copy-file registry-src registry-dest)
-    (path/copy-file zsh-completion-src zsh-completion-dest)
-    (path/copy-file man-src man-dest)
+    (path/run ["/bin/mkdir" "-p" tmp-dir])
+    (path/download-file (string base-url "/" runtime-manifest-file) runtime-manifest-src)
+    (each rel (runtime-relative-paths runtime-manifest-src)
+      (path/download-file (string base-url "/" rel)
+                          (path/join-path tmp-dir rel)))
+    (reset-managed-runtime-layout)
+    (install-runtime-files tmp-dir runtime-manifest-src)
+    (if (os/stat (path/self-source-file))
+      (path/run ["/bin/rm" "-f" (path/self-source-file)]))
     (write-self-meta @{:source :remote
                        :repo repo
                        :ref ref
                        :revision (remote-bootstrap-revision)})
-    (print "installed pkg into " wrapper-dest)))
+    (print "installed pkg into " (path/join-path (path/bin-dir) "pkg"))))

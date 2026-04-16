@@ -31,13 +31,14 @@ JPM_GIT_URL="${JPM_GIT_URL:-https://github.com/janet-lang/jpm.git}"
 BOOTSTRAP_REPO="${PKG_BOOTSTRAP_REPO:-mayphus/pkg}"
 BOOTSTRAP_REF="${PKG_BOOTSTRAP_REF:-main}"
 BOOTSTRAP_BASE_URL="${PKG_BOOTSTRAP_BASE_URL:-https://raw.githubusercontent.com/${BOOTSTRAP_REPO}/${BOOTSTRAP_REF}}"
+RUNTIME_MANIFEST="pkg-runtime-files.txt"
 
 SCRIPT_PATH="${0:-}"
 SCRIPT_DIR=""
 LOCAL_SOURCE_ROOT=""
 if [ -n "${SCRIPT_PATH}" ] && [ -f "${SCRIPT_PATH}" ]; then
   SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${SCRIPT_PATH}")" && pwd)"
-  if [ -f "${SCRIPT_DIR}/bin/pkg" ] && [ -f "${SCRIPT_DIR}/pkg.janet" ] && [ -f "${SCRIPT_DIR}/pkg-help.janet" ] && [ -f "${SCRIPT_DIR}/pkg-paths.janet" ] && [ -f "${SCRIPT_DIR}/pkg-package.janet" ] && [ -f "${SCRIPT_DIR}/pkg-install.janet" ] && [ -f "${SCRIPT_DIR}/pkg-manifest.janet" ] && [ -f "${SCRIPT_DIR}/pkg-state.janet" ] && [ -f "${SCRIPT_DIR}/pkg-self.janet" ] && [ -f "${SCRIPT_DIR}/packages.janet" ]; then
+  if [ -f "${SCRIPT_DIR}/bin/pkg" ] && [ -f "${SCRIPT_DIR}/pkg.janet" ] && [ -f "${SCRIPT_DIR}/pkg-help.janet" ] && [ -f "${SCRIPT_DIR}/pkg-paths.janet" ] && [ -f "${SCRIPT_DIR}/pkg-package.janet" ] && [ -f "${SCRIPT_DIR}/pkg-install.janet" ] && [ -f "${SCRIPT_DIR}/pkg-manifest.janet" ] && [ -f "${SCRIPT_DIR}/pkg-state.janet" ] && [ -f "${SCRIPT_DIR}/pkg-self.janet" ] && [ -f "${SCRIPT_DIR}/packages.janet" ] && [ -f "${SCRIPT_DIR}/${RUNTIME_MANIFEST}" ]; then
     LOCAL_SOURCE_ROOT="${SCRIPT_DIR}"
   fi
 fi
@@ -154,6 +155,45 @@ fetch_pkg_file() {
   fi
 }
 
+runtime_file_dest() {
+  rel="$1"
+  case "$rel" in
+    bin/*)
+      printf '%s\n' "${PREFIX}/${rel}"
+      ;;
+    completions/*)
+      printf '%s\n' "${PREFIX}/share/pkg/${rel}"
+      ;;
+    man/*)
+      printf '%s\n' "${PREFIX}/share/${rel}"
+      ;;
+    packages/*)
+      printf '%s\n' "${PKG_LIB_DIR}/${rel}"
+      ;;
+    *.janet)
+      printf '%s\n' "${PKG_LIB_DIR}/${rel}"
+      ;;
+    *)
+      printf '%s\n' "Unsupported pkg runtime path: ${rel}" >&2
+      exit 1
+      ;;
+  esac
+}
+
+install_runtime_files() {
+  manifest="$1"
+  while IFS= read -r rel || [ -n "$rel" ]; do
+    case "$rel" in
+      ''|'#'*) continue ;;
+    esac
+    dest="$(runtime_file_dest "$rel")"
+    fetch_pkg_file "$rel" "$dest"
+    if [ "$rel" = "bin/pkg" ]; then
+      chmod 755 "$dest"
+    fi
+  done < "$manifest"
+}
+
 bootstrap_janet() {
   mkdir -p "${BIN_DIR}" "${LIB_DIR}"
 
@@ -204,19 +244,11 @@ bootstrap_janet() {
 install_pkg() {
   mkdir -p "${BIN_DIR}" "${PKG_LIB_DIR}" "${ZSH_COMPLETIONS_DIR}" "${MAN1_DIR}" "${CONFIG_DIR}"
   ensure_safe_pkg_wrapper_dest "${BIN_DIR}/pkg"
-  fetch_pkg_file "bin/pkg" "${BIN_DIR}/pkg"
-  chmod 755 "${BIN_DIR}/pkg"
-  fetch_pkg_file "pkg.janet" "${PKG_LIB_DIR}/pkg.janet"
-  fetch_pkg_file "pkg-help.janet" "${PKG_LIB_DIR}/pkg-help.janet"
-  fetch_pkg_file "pkg-paths.janet" "${PKG_LIB_DIR}/pkg-paths.janet"
-  fetch_pkg_file "pkg-package.janet" "${PKG_LIB_DIR}/pkg-package.janet"
-  fetch_pkg_file "pkg-install.janet" "${PKG_LIB_DIR}/pkg-install.janet"
-  fetch_pkg_file "pkg-manifest.janet" "${PKG_LIB_DIR}/pkg-manifest.janet"
-  fetch_pkg_file "pkg-state.janet" "${PKG_LIB_DIR}/pkg-state.janet"
-  fetch_pkg_file "pkg-self.janet" "${PKG_LIB_DIR}/pkg-self.janet"
-  fetch_pkg_file "packages.janet" "${PKG_LIB_DIR}/packages.janet"
-  fetch_pkg_file "completions/zsh/_pkg" "${ZSH_COMPLETIONS_DIR}/_pkg"
-  fetch_pkg_file "man/man1/pkg.1" "${MAN1_DIR}/pkg.1"
+  runtime_manifest_tmp="$(mktemp /tmp/pkg-runtime-files.XXXXXX)"
+  fetch_pkg_file "${RUNTIME_MANIFEST}" "${runtime_manifest_tmp}"
+  rm -rf "${PKG_LIB_DIR}/packages"
+  install_runtime_files "${runtime_manifest_tmp}"
+  rm -f "${runtime_manifest_tmp}"
   printf '%s\n' "${BOOTSTRAP_REPO}" > "${BOOTSTRAP_REPO_FILE}"
   printf '%s\n' "${BOOTSTRAP_REF}" > "${BOOTSTRAP_REF_FILE}"
 
@@ -227,6 +259,7 @@ install_pkg() {
       "$(jdn_quote "${SCRIPT_DIR}")" \
       "$(jdn_quote "${REVISION}")" > "${SELF_META_FILE}"
   else
+    rm -f "${SELF_SOURCE_FILE}"
     REVISION="$(git ls-remote "https://github.com/${BOOTSTRAP_REPO}.git" "${BOOTSTRAP_REF}" 2>/dev/null | awk 'NR==1 {print $1}')"
     printf '{:source :remote :repo %s :ref %s :revision %s}\n' \
       "$(jdn_quote "${BOOTSTRAP_REPO}")" \
