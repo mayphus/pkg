@@ -89,7 +89,7 @@
   (join-path (completions-dir) "zsh"))
 
 (defn man-dir []
-  (join-path (package-root) "share" "man"))
+  (join-path (share-dir) "man"))
 
 (defn man1-dir []
   (join-path (man-dir) "man1"))

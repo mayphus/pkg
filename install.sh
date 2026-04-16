@@ -13,7 +13,8 @@ PKG_LIB_DIR="${PREFIX}/share/pkg/lib"
 COMPLETIONS_DIR="${PREFIX}/share/pkg/completions"
 ZSH_COMPLETIONS_DIR="${COMPLETIONS_DIR}/zsh"
 MAN_DIR="${PREFIX}/share/man"
-MAN1_DIR="${MAN_DIR}/man1"
+PKG_MAN_DIR="${PREFIX}/share/pkg/man"
+MAN1_DIR="${PKG_MAN_DIR}/man1"
 CONFIG_DIR="${HOME}/.config/pkg"
 SELF_SOURCE_FILE="${CONFIG_DIR}/self-source"
 SELF_META_FILE="${CONFIG_DIR}/self-meta.jdn"
@@ -71,6 +72,73 @@ download_file() {
   curl -fsSL "$url" -o "$dest"
 }
 
+path_prefix() {
+  prefix="$1"
+  value="$2"
+  case "$value" in
+    "$prefix"|"$prefix"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+managed_link_target() {
+  target="$1"
+  if path_prefix "${PREFIX}/opt/janet" "$target"; then
+    return 0
+  fi
+  if path_prefix "${PREFIX}/share/pkg" "$target"; then
+    return 0
+  fi
+  return 1
+}
+
+ensure_safe_symlink_dest() {
+  dest="$1"
+  target="$2"
+  if [ -L "$dest" ]; then
+    current="$(readlink "$dest" || true)"
+    if [ "$current" = "$target" ]; then
+      return 0
+    fi
+    if managed_link_target "$current"; then
+      rm -f "$dest"
+      return 0
+    fi
+    printf '%s\n' "Refusing to replace unmanaged symlink: $dest -> $current" >&2
+    exit 1
+  fi
+  if [ -e "$dest" ]; then
+    printf '%s\n' "Refusing to replace existing non-symlink path: $dest" >&2
+    exit 1
+  fi
+}
+
+pkg_wrapper_managed() {
+  file="$1"
+  if [ ! -f "$file" ]; then
+    return 1
+  fi
+  grep -Fq 'INSTALLED_LIB="${PREFIX_ROOT}/share/pkg/lib"' "$file" &&
+    grep -Fq 'exec "$JANET_BIN" "$ROOT/pkg.janet" "$@"' "$file"
+}
+
+ensure_safe_pkg_wrapper_dest() {
+  dest="$1"
+  if [ -L "$dest" ]; then
+    current="$(readlink "$dest" || true)"
+    if managed_link_target "$current"; then
+      rm -f "$dest"
+      return 0
+    fi
+    printf '%s\n' "Refusing to replace unmanaged symlink: $dest -> $current" >&2
+    exit 1
+  fi
+  if [ -e "$dest" ] && ! pkg_wrapper_managed "$dest"; then
+    printf '%s\n' "Refusing to replace existing unmanaged pkg wrapper: $dest" >&2
+    exit 1
+  fi
+}
+
 jdn_quote() {
   printf '"%s"' "$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 }
@@ -124,15 +192,19 @@ bootstrap_janet() {
     )
   fi
 
+  ensure_safe_symlink_dest "${BIN_DIR}/janet" "${JANET_BIN}"
   ln -sf "${JANET_BIN}" "${BIN_DIR}/janet"
   if [ -x "${JPM_BIN}" ]; then
+    ensure_safe_symlink_dest "${BIN_DIR}/jpm" "${JPM_BIN}"
     ln -sf "${JPM_BIN}" "${BIN_DIR}/jpm"
   fi
+  ensure_safe_symlink_dest "${LIB_DIR}/janet" "${TARGET_PREFIX}/lib/janet"
   ln -sfn "${TARGET_PREFIX}/lib/janet" "${LIB_DIR}/janet"
 }
 
 install_pkg() {
   mkdir -p "${BIN_DIR}" "${PKG_LIB_DIR}" "${ZSH_COMPLETIONS_DIR}" "${MAN1_DIR}" "${CONFIG_DIR}"
+  ensure_safe_pkg_wrapper_dest "${BIN_DIR}/pkg"
   fetch_pkg_file "bin/pkg" "${BIN_DIR}/pkg"
   chmod 755 "${BIN_DIR}/pkg"
   fetch_pkg_file "pkg.janet" "${PKG_LIB_DIR}/pkg.janet"
