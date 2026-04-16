@@ -52,6 +52,12 @@
           :cli
           :runtime))))
 
+(defn package-status [pkg]
+  (get pkg :status))
+
+(defn package-status-reason [pkg]
+  (get pkg :status-reason))
+
 (defn package-by-name [name]
   (let [pkg (get reg/packages name)]
     (if pkg

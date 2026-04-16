@@ -381,6 +381,8 @@
     "freecad"
     @{:name "freecad"
       :kind :app
+      :status :rescued
+      :status-reason :homebrew-deprecated
       :version "1.1.0"
       :homepage "https://www.freecad.org/"
       :license "LGPL-2.1-or-later"
@@ -394,7 +396,7 @@
               "chmod 755 \"$PREFIX/Applications/FreeCAD.app/Contents/MacOS/FreeCAD\""]
       :apps [@{:name "FreeCAD.app"
                :path "Applications/FreeCAD.app"}]
-      :notes "Installs the official FreeCAD 1.1.0 Apple Silicon macOS app into ~/Applications."}
+      :notes "Rescues the official FreeCAD 1.1.0 Apple Silicon macOS app after Homebrew deprecated its cask for failing Gatekeeper checks."}
 
     "librime"
     @{:name "librime"
