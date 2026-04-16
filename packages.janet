@@ -66,6 +66,24 @@
       :bins ["codex"]
       :notes "Installs the native OpenAI Codex CLI Apple Silicon macOS binary release."}
 
+    "kubernetes-cli"
+    @{:name "kubernetes-cli"
+      :kind :cli
+      :version "1.35.3"
+      :homepage "https://kubernetes.io/docs/reference/kubectl/"
+      :license "Apache-2.0"
+      :source @{:type :url
+                :url "https://dl.k8s.io/v1.35.3/bin/darwin/arm64/kubectl"
+                :file-name "kubectl"
+                :archive :dmg
+                :sha256 "280651239d84bab214ba83403666bf6976a5fa0dbdb41404f26eb6f276d34963"}
+      :install-mode :copy-paths
+      :copy-paths [@{:from "kubectl"
+                     :to "bin/kubectl"
+                     :mode "755"}]
+      :bins ["kubectl"]
+      :notes "Installs the official Kubernetes kubectl Apple Silicon macOS binary release."}
+
     "gemini"
     @{:name "gemini"
       :kind :tool
