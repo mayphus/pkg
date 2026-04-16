@@ -1,4 +1,4 @@
-.Dd April 12, 2026
+.Dd April 16, 2026
 .Dt PKG 1
 .Os
 .Sh NAME
@@ -13,13 +13,15 @@
 .Op Ar command
 .Sh DESCRIPTION
 .Nm
-manages packages in the user prefix under
-.Pa ~/.local .
-CLI and runtime packages are installed under
-.Pa ~/.local/opt
-and exposed through
-.Pa ~/.local/bin .
-Managed GUI applications are installed in
+manages packages in a user-space store/profile layout under
+.Pa ~/.local ,
+with cache data in
+.Pa ~/.cache/pkg
+and runtime state in
+.Pa ~/.local/state/pkg .
+Public commands are exposed through
+.Pa ~/.local/bin
+and managed GUI applications are exposed in
 .Pa ~/Applications .
 .Pp
 The command set is intentionally small and follows a ports-style workflow:
@@ -43,6 +45,14 @@ Remove a package.
 .It Cm upgrade
 Upgrade one package or all installed packages with
 .Cm --all .
+.It Cm plan
+Show the resolved closure, realization mode, and activation changes for a package.
+.It Cm why
+Show which active roots require a package.
+.It Cm rollback
+Switch back to the previous active profile generation.
+.It Cm gc
+Remove unreachable store objects and stale build state.
 .It Cm self-upgrade
 Refresh
 .Nm
@@ -63,9 +73,13 @@ Print installation paths and environment diagnostics.
 .It Pa ~/.local/bin
 User-visible command symlinks and wrappers.
 .It Pa ~/.local/opt
-Versioned package payloads.
+Legacy package payloads imported from the pre-store layout.
+.It Pa ~/.local/state/pkg/store
+Immutable store objects and profile generations.
+.It Pa ~/.cache/pkg
+Downloads and build work directories.
 .It Pa ~/.local/share/pkg
-Package state, manifests, caches, completions, and runtime files.
+Runtime files and managed completions.
 .It Pa ~/.config/pkg
 Bootstrap and release configuration.
 .It Pa ~/.local/share/pkg/completions/zsh/_pkg
@@ -77,7 +91,11 @@ Installed zsh completion for
 pkg install bun
 pkg show python
 pkg info google-chrome
+pkg plan hello-local
+pkg why codex
 pkg upgrade --all
+pkg rollback
+pkg gc
 pkg self-upgrade
 pkg cleanup --cache
 .Ed

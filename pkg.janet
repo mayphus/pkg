@@ -23,6 +23,10 @@
 (def applications-dir path/applications-dir)
 (def input-methods-dir path/input-methods-dir)
 (def cache-dir path/cache-dir)
+(def cache-root path/cache-root)
+(def state-root path/state-root)
+(def store-root path/store-root)
+(def profiles-root path/profiles-root)
 (def lib-dir path/lib-dir)
 (def installed-dir path/installed-dir)
 (def build-root path/build-root)
@@ -80,12 +84,14 @@
 (def package-source-dir state/package-source-dir)
 (def package-manifest-dir state/package-manifest-dir)
 (def package-manifest-file state/package-manifest-file)
-(def package-env state/package-env)
 (def manifest-pkg state/manifest-pkg)
 (def read-manifest state/read-manifest)
 (def installed-package-versions state/installed-package-versions)
 (def installed-package-names state/installed-package-names)
 (def remove-empty-dir state/remove-empty-dir)
+(def read-roots state/read-roots)
+(def read-reverse-index state/read-reverse-index)
+(def read-current-generation state/read-current-generation)
 (def self-source-root self/self-source-root)
 (def configured-release-repo self/configured-release-repo)
 (def configured-bootstrap-repo self/configured-bootstrap-repo)
@@ -93,6 +99,13 @@
 (def read-self-meta self/read-self-meta)
 (def install-self-files self/install-self-files)
 (def install-self-files-from-remote self/install-self-files-from-remote)
+(def active-package-metadata install/active-package-metadata)
+(def metadata-for-name install/metadata-for-name)
+(def plan-package install/plan-package)
+(def why-package install/why-package)
+(def rollback-profile install/rollback-profile)
+(def gc install/gc)
+(def current-reverse-index install/current-reverse-index)
 
 (defn command-list []
   (print "available packages:")
@@ -127,6 +140,13 @@
         (set matched true)))
     matched))
 
+(defn contains-value? [values expected]
+  (var found false)
+  (each value values
+    (if (= value expected)
+      (set found true)))
+  found)
+
 (defn command-search [query]
   (let [matches @[]]
     (eachk name reg/packages
@@ -140,43 +160,43 @@
         (each pkg matches
           (print "  " (get pkg :name) "  " (get pkg :version)))))))
 
+(defn sorted-active-package-names []
+  (let [metas (active-package-metadata)
+        names @[]]
+    (eachk name metas
+      (array/push names name))
+    (state/sort-strings names)))
+
 (defn command-installed []
-  (let [root (installed-dir)]
-    (if (os/stat root)
-      (let [entries (os/dir root)
-            installed @[]]
-        (each name entries
-          (let [pkg-root (join-path root name)]
-            (if (os/stat pkg-root)
-              (each version (os/dir pkg-root)
-                (let [manifest (read-manifest name version)]
-                  (if manifest
-                    (array/push installed
-                                @{:name name
-                                  :version version
-                                  :kind (installed-item-kind name version manifest)
-                                  :source (manifest-source-type manifest)})))))))
-        (if (= 0 (length installed))
-          (print "no installed packages")
-          (do
-            (print "installed packages:")
-            (print "  "
-                   (string/format "%-18s" "name")
-                   "  "
-                   (string/format "%-14s" "version")
-                   "  "
-                   (string/format "%-8s" "kind")
-                   "  source")
-            (each item installed
+  (let [names (sorted-active-package-names)
+        roots (read-roots)
+        metas (active-package-metadata)]
+    (if (= 0 (length names))
+      (print "no installed packages")
+      (do
+        (print "installed packages:")
+        (print "  "
+               (string/format "%-18s" "name")
+               "  "
+               (string/format "%-14s" "version")
+               "  "
+               (string/format "%-8s" "kind")
+               "  "
+               (string/format "%-6s" "role")
+               "  source")
+        (each name names
+          (let [meta (get metas name)]
+            (if meta
               (print "  "
-                     (string/format "%-18s" (get item :name))
+                     (string/format "%-18s" (get meta :name))
                      "  "
-                     (string/format "%-14s" (get item :version))
+                     (string/format "%-14s" (get meta :version))
                      "  "
-                     (string/format "%-8s" (get item :kind))
+                     (string/format "%-8s" (get meta :kind))
                      "  "
-                     (get item :source))))))
-      (print "no installed packages"))))
+                     (string/format "%-6s" (if (contains-value? roots name) "root" "dep"))
+                     "  "
+                     (string (or (get meta :origin) :unknown))))))))))
 
 (defn command-show [name]
   (let [pkg (package-by-name name)]
@@ -225,17 +245,20 @@
 
 (defn command-info [name]
   (let [pkg (get reg/packages name)
-        version (if pkg (get pkg :version) nil)
-        manifest (if version (read-manifest name version) nil)]
-    (if (not manifest)
-      (fail (string "package is not installed at current registry version: " name))
+        meta (metadata-for-name name)
+        roots (get (current-reverse-index) name)]
+    (if (not meta)
+      (fail (string "package is not active in the current profile: " name))
       (do
-        (print "name:    " (get manifest :name))
-        (print "version: " (get manifest :version))
-        (print "kind:    " (installed-item-kind name (get manifest :version) manifest))
-        (print "prefix:  " (get manifest :prefix))
-        (print "source:  " (manifest-source-type manifest))
-        (let [source (get manifest :source)]
+        (print "name:    " (get meta :name))
+        (print "version: " (get meta :version))
+        (print "kind:    " (get meta :kind))
+        (print "origin:  " (get meta :origin))
+        (print "store-id: " (get meta :store-id))
+        (print "prefix:  " (get meta :prefix))
+        (print "store:   " (get meta :store-path))
+        (print "source:  " (string (get (get meta :source) :type)))
+        (let [source (get meta :source)]
           (if (get source :url)
             (print "url:     " (get source :url)))
           (if (get source :path)
@@ -250,37 +273,47 @@
               (print "homepage:" " " (get pkg :homepage)))
             (if (get pkg :license)
               (print "license: " (get pkg :license)))))
-        (print "bins:    " (string/join (or (get manifest :bins) @[]) ", "))
-        (if (> (length (manifest-linked-bins manifest)) 0)
+        (if (and roots (> (length roots) 0))
+          (print "roots:   " (string/join roots ", ")))
+        (if (> (length (get meta :bins)) 0)
           (do
             (print "linked:")
-            (each entry (manifest-linked-bins manifest)
-              (print "  " (get entry :name) " -> " (get entry :path)))))
-        (if (> (length (manifest-completions manifest)) 0)
+            (each entry (get meta :bins)
+              (print "  " (get entry :name) " -> " (get entry :public)))))
+        (if (> (length (get meta :completions)) 0)
           (do
             (print "completions:")
-            (each entry (manifest-completions manifest)
-              (print "  zsh " (get entry :name) " -> " (get entry :path)))))
-        (if (> (length (manifest-man-pages manifest)) 0)
+            (each entry (get meta :completions)
+              (print "  zsh " (get entry :name) " -> " (get entry :public)))))
+        (if (> (length (get meta :man-pages)) 0)
           (do
             (print "man pages:")
-            (each entry (manifest-man-pages manifest)
-              (print "  " (get entry :name) " -> " (get entry :path)))))
-        (if (> (length (manifest-apps manifest)) 0)
+            (each entry (get meta :man-pages)
+              (print "  " (get entry :name) " -> " (get entry :public)))))
+        (if (> (length (get meta :apps)) 0)
           (do
             (print "apps:")
-            (each app (manifest-apps manifest)
-              (print "  " (get app :name) " -> " (get app :path)))))))))
+            (each app (get meta :apps)
+              (print "  " (get app :name) " -> " (get app :public)))))))))
 
 (defn command-doctor []
   (ensure-layout)
-  (print "root:       " (package-root))
+  (print "prefix:     " (package-root))
   (print "bin:        " (bin-dir))
-  (print "opt:        " (opt-dir))
+  (print "opt-legacy: " (opt-dir))
   (print "share:      " (share-dir))
   (print "config:     " (config-dir))
+  (print "cache:      " (cache-root))
+  (print "state:      " (state-root))
+  (print "store:      " (store-root))
+  (print "profiles:   " (profiles-root))
   (if (configured-release-repo)
     (print "releases:   " (configured-release-repo)))
+  (let [generation (read-current-generation)]
+    (if generation
+      (do
+        (print "generation: " (get generation :number))
+        (print "roots:      " (string/join (or (get generation :roots) @[]) ", ")))))
   (print "")
   (print "make sure this is on PATH:")
   (print "  " (bin-dir)))
@@ -451,6 +484,14 @@
                       (command-upgrade-all)
                       (upgrade-package (get args 1)))
                     (fail "upgrade requires a package name")))
+      "plan" (if (get args 1)
+               (plan-package (get args 1))
+               (fail "plan requires a package name"))
+      "why" (if (get args 1)
+              (why-package (get args 1))
+              (fail "why requires a package name"))
+      "rollback" (rollback-profile)
+      "gc" (gc)
       "self-upgrade" (upgrade-package "pkg")
       "cleanup" (apply command-cleanup (tuple/slice args 1))
       "doctor" (command-doctor)

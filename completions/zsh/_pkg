@@ -24,6 +24,10 @@ commands=(
   'reinstall:reinstall current package version'
   'remove:remove a package'
   'upgrade:upgrade an installed package'
+  'plan:print resolved closure and activation changes'
+  'why:show which roots require a package'
+  'rollback:switch back to the previous profile generation'
+  'gc:remove unreachable store objects'
   'self-upgrade:upgrade pkg itself'
   'cleanup:remove build state'
   'audit:report packages missing sha256'
@@ -47,11 +51,11 @@ case $state in
       help)
         if (( CURRENT == 3 )); then
           local -a help_topics
-          help_topics=(help list search installed show info install reinstall remove upgrade self-upgrade cleanup audit version doctor)
+          help_topics=(help list search installed show info install reinstall remove upgrade plan why rollback gc self-upgrade cleanup audit version doctor)
           _describe -t topics 'help topic' help_topics
         fi
         ;;
-      show|install|reinstall)
+      show|install|reinstall|plan)
         if [[ "${words[2]}" == "install" && CURRENT == 3 ]]; then
           _values 'install option' --dry-run
         elif [[ "${words[2]}" == "install" && "${words[3]}" == "--dry-run" && CURRENT == 4 ]]; then
@@ -60,7 +64,7 @@ case $state in
           _pkg_registry_packages
         fi
         ;;
-      info|remove)
+      info|remove|why)
         if [[ "${words[2]}" == "remove" && CURRENT == 3 ]]; then
           _values 'remove option' --dry-run
         elif [[ "${words[2]}" == "remove" && "${words[3]}" == "--dry-run" && CURRENT == 4 ]]; then

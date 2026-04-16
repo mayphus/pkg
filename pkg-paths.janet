@@ -49,23 +49,56 @@
 (defn config-dir []
   (join-path (home) ".config" "pkg"))
 
+(defn cache-root []
+  (join-path (home) ".cache" "pkg"))
+
+(defn cache-dir []
+  (join-path (cache-root) "downloads"))
+
+(defn build-root []
+  (join-path (cache-root) "build"))
+
+(defn state-root []
+  (join-path (package-root) "state" "pkg"))
+
+(defn store-root []
+  (join-path (state-root) "store"))
+
+(defn profiles-root []
+  (join-path (state-root) "profiles"))
+
+(defn default-profile []
+  "default")
+
+(defn profile-root [&opt name]
+  (join-path (profiles-root) (or name (default-profile))))
+
+(defn profile-generations-dir [&opt name]
+  (join-path (profile-root name) "generations"))
+
+(defn profile-current-link [&opt name]
+  (join-path (profile-root name) "current"))
+
+(defn profile-roots-file [&opt name]
+  (join-path (profile-root name) "roots.jdn"))
+
+(defn profile-reverse-index-file [&opt name]
+  (join-path (profile-root name) "reverse-index.jdn"))
+
+(defn profile-staging-dir [&opt name]
+  (join-path (profile-root name) "staging"))
+
 (defn applications-dir []
   (join-path (home) "Applications"))
 
 (defn input-methods-dir []
   (join-path (home) "Library" "Input Methods"))
 
-(defn cache-dir []
-  (join-path (share-dir) "cache"))
-
 (defn lib-dir []
   (join-path (share-dir) "lib"))
 
 (defn installed-dir []
   (join-path (share-dir) "installed"))
-
-(defn build-root []
-  (join-path (share-dir) "build"))
 
 (defn self-source-file []
   (join-path (config-dir) "self-source"))
@@ -89,7 +122,7 @@
   (join-path (completions-dir) "zsh"))
 
 (defn man-dir []
-  (join-path (share-dir) "man"))
+  (join-path (package-root) "share" "man"))
 
 (defn man1-dir []
   (join-path (man-dir) "man1"))
@@ -131,7 +164,7 @@
   (os/execute ["/bin/sh" "-lc" shell-command] :px))
 
 (defn capture-command [args]
-  (let [tmp-output (join-path (build-root) ".capture-command")
+  (let [tmp-output (join-path (or (os/getenv "TMPDIR") "/tmp") ".pkg-capture-command")
         command (string
                   "("
                   (string/join args " ")
@@ -143,17 +176,36 @@
       nil
       (string/trim (slurp tmp-output)))))
 
+(defn platform-tag []
+  (let [system (or (capture-command ["/usr/bin/uname" "-s"]) "unknown")
+        machine (or (capture-command ["/usr/bin/uname" "-m"]) "unknown")]
+    (string (string/ascii-lower system) "-" machine)))
+
+(defn sha256-file [file]
+  (let [tmp-output (join-path (or (os/getenv "TMPDIR") "/tmp") ".pkg-sha256")
+        _ (os/shell (string "/usr/bin/shasum -a 256 \"" file "\" > \"" tmp-output "\""))
+        output (string/trim (slurp tmp-output))]
+    (first (string/split " " output))))
+
+(defn sha256-text [text]
+  (let [tmp-file (join-path (or (os/getenv "TMPDIR") "/tmp") ".pkg-sha256-text")]
+    (spit tmp-file text)
+    (sha256-file tmp-file)))
+
 (defn ensure-layout []
   (run ["/bin/mkdir" "-p"
         (bin-dir)
         (opt-dir)
         (cache-dir)
+        (build-root)
         (lib-dir)
         (zsh-completions-dir)
         (man1-dir)
         (installed-dir)
-        (build-root)
-        (config-dir)]))
+        (config-dir)
+        (store-root)
+        (profile-generations-dir)
+        (profile-staging-dir)]))
 
 (defn expand-project-path [value]
   (if (or (= "" value)

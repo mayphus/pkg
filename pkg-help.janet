@@ -13,6 +13,10 @@
   (print "  reinstall    reinstall current package version")
   (print "  remove       remove a package")
   (print "  upgrade      upgrade one package or --all")
+  (print "  plan         print resolved closure and activation changes")
+  (print "  why          explain which roots require a package")
+  (print "  rollback     switch back to the previous profile generation")
+  (print "  gc           remove unreachable store objects")
   (print "  self-upgrade upgrade pkg itself")
   (print "  cleanup      remove build state, optionally cache")
   (print "  audit        report integrity issues")
@@ -67,6 +71,22 @@
                 (print "")
                 (print "Upgrade one installed package to the current registry version,")
                 (print "or upgrade all installed packages that are behind."))
+    "plan" (do
+             (print "usage: pkg plan package")
+             (print "")
+             (print "Show the resolved closure, realization mode, and activation changes."))
+    "why" (do
+            (print "usage: pkg why package")
+            (print "")
+            (print "Show which active roots require a package."))
+    "rollback" (do
+                 (print "usage: pkg rollback")
+                 (print "")
+                 (print "Switch back to the previous active profile generation."))
+    "gc" (do
+           (print "usage: pkg gc")
+           (print "")
+           (print "Remove unreachable store objects and clear stale build state."))
     "self-upgrade" (do
                      (print "usage: pkg self-upgrade")
                      (print "")
