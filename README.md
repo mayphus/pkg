@@ -159,6 +159,12 @@ hello-local
 ./bin/pkg remove hello-local
 ```
 
+For a broader automated CLI check, run:
+
+```sh
+tests/cli-smoke.sh
+```
+
 ## Upgrading pkg
 
 Once installed, there are now two update paths.
@@ -187,6 +193,8 @@ pkg self-upgrade
 
 - repo: `mayphus/pkg`
 - ref: `main`
+
+When direct raw-file downloads fail, `pkg self-upgrade` will also try `gh api` as an authenticated fallback. That covers private GitHub bootstrap repos as long as `gh auth status` is already set up.
 
 You can override those with:
 

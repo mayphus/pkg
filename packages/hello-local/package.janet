@@ -1,6 +1,11 @@
 (def package
   @{
-    :bins ["hello-local"]
+    :links [
+      @{
+        :name "hello-local"
+        :path "hello-local"
+      }
+    ]
     :version "0.1.0"
     :source @{
       :path "examples"

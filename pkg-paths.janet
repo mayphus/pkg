@@ -154,6 +154,13 @@
     (os/execute args :epx env)
     (os/execute args :px)))
 
+(defn run-status [args &opt env]
+  (if (debug-enabled?)
+    (print "$ " (string/join args " ")))
+  (if env
+    (os/execute args :ep env)
+    (os/execute args :p)))
+
 (defn run-shell [command env]
   (def shell-command
     (if env
@@ -231,3 +238,15 @@
   (if (os/stat dest)
     (run ["/bin/rm" "-f" dest]))
   (run ["/usr/bin/curl" "-fsSL" url "-o" dest]))
+
+(defn try-download-file [url dest]
+  (run ["/bin/mkdir" "-p" (dirname dest)])
+  (if (os/stat dest)
+    (run ["/bin/rm" "-f" dest]))
+  (let [status (run-status ["/usr/bin/curl" "-fsSL" url "-o" dest])]
+    (if (not= 0 status)
+      (do
+        (if (os/stat dest)
+          (os/rm dest))
+        false)
+      true)))

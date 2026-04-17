@@ -3,7 +3,10 @@
 
 (defn package-bins [pkg]
   (or (get pkg :bins)
-      @[]))
+      (let [links (get pkg :links)]
+        (if links
+          (map (fn [entry] (get entry :name)) links)
+          @[]))))
 
 (defn package-links [pkg]
   (or (get pkg :links)
