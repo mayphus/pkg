@@ -20,6 +20,7 @@ packages/bun/package.janet
 packages/cabal-install/package.janet
 packages/clojure/package.janet
 packages/codex/package.janet
+packages/codex-app/package.janet
 packages/emacs/package.janet
 packages/emacs-plus/package.janet
 packages/freecad/package.janet
