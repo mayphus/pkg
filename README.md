@@ -1,5 +1,7 @@
 # pkg
 
+> **Status:** Experimental personal tool — intentionally small in scope and not intended as a complete Homebrew replacement.
+
 `pkg` is a small Janet-based personal package manager aimed at replacing the part of Homebrew you actually use, not the whole Homebrew formula ecosystem.
 
 It is intentionally user-prefix only. `pkg` installs into `~/.local` and stages builds under `~/.local/share/pkg/build`; it should not write into `/usr/local`, `/opt/homebrew`, or other system prefixes.
